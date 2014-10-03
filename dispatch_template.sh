@@ -1,18 +1,18 @@
 i#!/bin/bash
 #####################################################################
-# dispatch_template.sh  -- all Atmos versions 						#
-#																	#
-# Outputs pre-filled dispatch templates for Atmos.					#
-#																	#
-# Created by Claiton Weeks (claiton.weeks@emc.com)					#
-# 																	#
-# Templates based off of Robert Schloss's dispatch templates.		#
-# 					--Thanks Robert!								#
-#																	#
-# May be freely distributed and modified as needed, 				#
-# as long as proper credit is given.								#
-#																	#
-version=1.2.0a														#
+# dispatch_template.sh  -- all Atmos versions 			                #
+#					                                                          #
+# Outputs pre-filled dispatch templates for Atmos.		              #
+#								                                                    #
+# Created by Claiton Weeks (claiton.weeks@emc.com)		              #
+# 								                                                  #
+# Templates based off of Robert Schloss's dispatch templates.	      #
+# 					--Thanks Robert!	                                      #
+#								                                                    #
+# May be freely distributed and modified as needed, 		            #
+# as long as proper credit is given.				                        #
+#								                                                    #
+version=1.2.0a							                                        #
 #####################################################################
 
 ############################################################################################################
@@ -21,8 +21,8 @@ version=1.2.0a														#
 script_name=dispatch_template.sh 	
 cm_cfg="/etc/maui/cm_cfg.xml" 
 export RMG_MASTER=`awk -F, '/localDb/ {print $(NF-1)}' $cm_cfg`										# top_view.py -r local | sed -n '4p' | sed 's/.*"\(.*\)"[^"]*$/\1/'
-export INITIAL_MASTER=`awk -F"\"|," '/systemDb/ {print $(NF-2)}' $cm_cfg`							# show_master.py |  awk '/System Master/ {print $NF}'
-xDr_Disabled_Flag=0																					# Initialize xdr disable flag.
+export INITIAL_MASTER=`awk -F"\"|," '/systemDb/ {print $(NF-2)}' $cm_cfg`					# show_master.py |  awk '/System Master/ {print $NF}'
+xDr_Disabled_Flag=0																		                      			# Initialize xdr disable flag.
 
 ############################################################################################################
 ###########################################       Functions      ###########################################
@@ -198,29 +198,29 @@ append_dispatch_date() {			# Appends dispatch date in show_offline_disks script 
 
 set_customer_contact_info() {		# Set Customer contact info/location.
 	### Beatle addresses:
-	alln_address="AT&T Solutions_Allen_IDC_Apple_SMS Managed Utility\n900 VENTURE DR\nALLEN, TX 75013"															# Allen
-	amst_address="AT&T SOLUTIONS C/O REMOTE MANAGED SERVICES (RMS)\nGLOBAL SWITCH AMSTERDAM SLOTERVAAR\nJOHAN HUIZINGALAAN 759\nAMSTERDAM, NL 1066 VH"			# Amsterdam
-	DFW0_address="AT&T Internet Data Center\n11830 WEBB CHAPEL RD\nC/O Site ID 21611\nDALLAS, TX 75234"															# Dallas - Fort Worth
-	dfw1_address="AT&T Internet Data Center\n11830 WEBB CHAPEL RD\nC/O Site ID 21611\nDALLAS, TX 75234"															# Dallas - Fort Worth
+	alln_address="AT&T Solutions_Allen_IDC_Apple_SMS Managed Utility\n900 VENTURE DR\nALLEN, TX 75013"																	                      	# Allen
+	amst_address="AT&T SOLUTIONS C/O REMOTE MANAGED SERVICES (RMS)\nGLOBAL SWITCH AMSTERDAM SLOTERVAAR\nJOHAN HUIZINGALAAN 759\nAMSTERDAM, NL 1066 VH"			    # Amsterdam
+	DFW0_address="AT&T Internet Data Center\n11830 WEBB CHAPEL RD\nC/O Site ID 21611\nDALLAS, TX 75234"																	                      	# Dallas - Fort Worth
+	dfw1_address="AT&T Internet Data Center\n11830 WEBB CHAPEL RD\nC/O Site ID 21611\nDALLAS, TX 75234"																	                      	# Dallas - Fort Worth
 	hnkg_address="AT&T INFRASTRUCTURE STAAS:22061.HNK2\n28 PAK TIN PAR STREET\n10/F I TECH TOWER SITE ID[22061]\nTSUEN WAN\nNEW TERRITORIES\nHong Kong, China"	# Hong Kong - Phase 2
-	LIS0_address="AT&T Internet Data Center\n4513 WESTERN AVE\nC/O Site ID 21609\nLISLE, IL  60532"																# Lisle
-	lis1_address="AT&T Internet Data Center\n4513 WESTERN AVE\nC/O Site ID 21609\nLISLE, IL  60532"																# Lisle
-	lond_address="AT&T SOLUTIONS C/O AT&T ENT. HOSTING LONDON UK\nUNIT 21 SENTRUM IV FACILITY\nGOLDSWORTH PARK TRADING ESTATE\nWOKING  SURREY  GB  GU21  3BA"	# London
-	rdcy_address="AT&T CORP\n3175 SPRING ST\nC/O AT&T Infrastructure StaaS: 22088.RWC\nREDWOOD CITY, CA 94063"  												# Redwood City - Phase 2.2
-	RWC0_address="AT&T DATA CENTER\nC/O SITE ID 21610\n3175 SPRING ST\nREDWOOD CITY, CA 94063"																	# Redwood City - P1
-	rwc1_address="AT&T DATA CENTER\nC/O SITE ID 21610\n3175 SPRING ST\nREDWOOD CITY, CA 94063"																	# Redwood City - P1
-	stls_address="AT&T CORP\n801 CHESTNUT ST\nBEATLE PROJECT\nSAINT LOUIS, MO 63101"																			# Saint Louis
-	sndg_address="AT&T \n7337 TRADE ST\nRM 2181\nSAN DIEGO, CA  92121"																							# San Diego
-	SEC0_address="AT&T Internet Data Center\nC/O SITE ID 21614\n15 ENTERPRISE AVE N\nSECAUCUS, NJ  07094"														# Secaucus
-	sec1_address="AT&T Internet Data Center\nC/O SITE ID 21614\n15 ENTERPRISE AVE N\nSECAUCUS, NJ  07094"														# Secaucus
+	LIS0_address="AT&T Internet Data Center\n4513 WESTERN AVE\nC/O Site ID 21609\nLISLE, IL  60532"													  					                      	# Lisle
+	lis1_address="AT&T Internet Data Center\n4513 WESTERN AVE\nC/O Site ID 21609\nLISLE, IL  60532"													  					                      	# Lisle
+	lond_address="AT&T SOLUTIONS C/O AT&T ENT. HOSTING LONDON UK\nUNIT 21 SENTRUM IV FACILITY\nGOLDSWORTH PARK TRADING ESTATE\nWOKING  SURREY  GB  GU21  3BA"	  # London
+	rdcy_address="AT&T CORP\n3175 SPRING ST\nC/O AT&T Infrastructure StaaS: 22088.RWC\nREDWOOD CITY, CA 94063"  												                      	# Redwood City - Phase 2.2
+	RWC0_address="AT&T DATA CENTER\nC/O SITE ID 21610\n3175 SPRING ST\nREDWOOD CITY, CA 94063"															    				                      	# Redwood City - P1
+	rwc1_address="AT&T DATA CENTER\nC/O SITE ID 21610\n3175 SPRING ST\nREDWOOD CITY, CA 94063"																	   			                        # Redwood City - P1
+	stls_address="AT&T CORP\n801 CHESTNUT ST\nBEATLE PROJECT\nSAINT LOUIS, MO 63101"											        								  			                      # Saint Louis
+	sndg_address="AT&T \n7337 TRADE ST\nRM 2181\nSAN DIEGO, CA  92121"																						                				                      # San Diego
+	SEC0_address="AT&T Internet Data Center\nC/O SITE ID 21614\n15 ENTERPRISE AVE N\nSECAUCUS, NJ  07094"																                      	# Secaucus
+	sec1_address="AT&T Internet Data Center\nC/O SITE ID 21614\n15 ENTERPRISE AVE N\nSECAUCUS, NJ  07094"																	                      # Secaucus
 	SYD0_address="AT&T - Please update location info in script."
 	syd1_address="AT&T - Please update location info in script."
-	tkyo_address="AT&T Japan K.K.\n2-3-10 FUKUZUMI\nASAHI COMPUTER BLDG 2ND FLOOR\nKOTO-KU\nTOKYO, JAPAN   135-0032"											# Tokyo - Phase 2
-	TYO0_address="AT&T Solutions_Tokyo IDC_Apple_SMS Managed Utility\n6-5 KITA SHINAGAWA\nC/O AT&T ENTERPRISE HOSTING SERVICES\nTOKYO, JAPAN  141-0001"			# Tokyo - Phase 1
+	tkyo_address="AT&T Japan K.K.\n2-3-10 FUKUZUMI\nASAHI COMPUTER BLDG 2ND FLOOR\nKOTO-KU\nTOKYO, JAPAN   135-0032"								                            # Tokyo - Phase 2
+	TYO0_address="AT&T Solutions_Tokyo IDC_Apple_SMS Managed Utility\n6-5 KITA SHINAGAWA\nC/O AT&T ENTERPRISE HOSTING SERVICES\nTOKYO, JAPAN  141-0001"			    # Tokyo - Phase 1
 	########## CSTaaS addresses:
-	lon0_address="AT&T SOLUTIONS_LONDON IDC_APPLE_SMS MANAGED UTILITY\nGOLDSWORTH PARK TRADING ESTATE\nKESTREL WAY\nWOKING  SURREY    GB     GU21 3BA"			# London ?
-	dfw0_address="AT&T Solutions_Dallas IDC_SMS Managed Utility - STaaS\n11830 WEBB CHAPEL RD\nSTE 200\nDALLAS, TX  75234"										# dfw cstaas
-	iad0_address="AT&T Solutions_Ashburn IDC_SMS Managed Utility - STaaS\n21571 BEAUMEADE CIR\nASHBURN, VA  20147"												# iad cstaas
+	lon0_address="AT&T SOLUTIONS_LONDON IDC_APPLE_SMS MANAGED UTILITY\nGOLDSWORTH PARK TRADING ESTATE\nKESTREL WAY\nWOKING  SURREY    GB     GU21 3BA"			    # London ?
+	dfw0_address="AT&T Solutions_Dallas IDC_SMS Managed Utility - STaaS\n11830 WEBB CHAPEL RD\nSTE 200\nDALLAS, TX  75234"										                  # dfw cstaas
+	iad0_address="AT&T Solutions_Ashburn IDC_SMS Managed Utility - STaaS\n21571 BEAUMEADE CIR\nASHBURN, VA  20147"												                      # iad cstaas
 	
 	eval is_att_rocc_system=\$$node_location
 	if [[ ${#is_att_rocc_system} -gt 1 && "${is_att_rocc_system}" == "AT&T"[\ ]* ]] ; then
