@@ -12,17 +12,27 @@ i#!/bin/bash
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-version=1.2.0a                                                      #
+  version=1.2.1                                                     #
 #####################################################################
 
 ############################################################################################################
 #########################################   Variables/Parameters   #########################################
 ############################################################################################################
-script_name=dispatch_template.sh 	
-cm_cfg="/etc/maui/cm_cfg.xml" 
-export RMG_MASTER=`awk -F, '/localDb/ {print $(NF-1)}' $cm_cfg`										# top_view.py -r local | sed -n '4p' | sed 's/.*"\(.*\)"[^"]*$/\1/'
-export INITIAL_MASTER=`awk -F"\"|," '/systemDb/ {print $(NF-2)}' $cm_cfg`				  # show_master.py |  awk '/System Master/ {print $NF}'
-xDr_Disabled_Flag=0																					                      # Initialize xdr disable flag.
+  script_name=dispatch_template.sh 	
+  cm_cfg="/etc/maui/cm_cfg.xml" 
+  export RMG_MASTER=`awk -F, '/localDb/ {print $(NF-1)}' $cm_cfg`										# top_view.py -r local | sed -n '4p' | sed 's/.*"\(.*\)"[^"]*$/\1/'
+  export INITIAL_MASTER=`awk -F"\"|," '/systemDb/ {print $(NF-2)}' $cm_cfg`				  # show_master.py |  awk '/System Master/ {print $NF}'
+  xdr_disabled_flag=0																					                      # Initialize xdr disable flag.
+  node_uuid=`dmidecode | grep -i uuid | awk {'print $2'}`                           # Find UUID of current node.
+  cloudlet_name=`awk -F",|\"" '/localDb/ {print $(NF-3)}' $cm_cfg`
+  atmos_ver=`awk -F\" '/version\" val/ {print $4}' /etc/maui/nodeconfig.xml`
+  atmos_ver3=`awk -F\" '/version\" val/ {print substr($4,1,3)}' /etc/maui/nodeconfig.xml`
+  atmos_ver5=`awk -F\" '/version\" val/ {print substr($4,1,5)}' /etc/maui/nodeconfig.xml`
+  atmos_ver7=`awk -F\" '/version\" val/ {print substr($4,1,7)}' /etc/maui/nodeconfig.xml`
+  site_id=`awk '/site/ {print ($3)}' /etc/maui/reporting/syr_reporting.conf`
+  node_location="`echo $HOSTNAME | cut -c 1-4`_address";
+  tla_number=`awk '/hardware/ {if (length($NF)!=14) print "Not found";else print $NF }' /etc/maui/reporting/tla_reporting.conf`
+    
 
 ############################################################################################################
 ###########################################       Functions      ###########################################
@@ -30,35 +40,36 @@ xDr_Disabled_Flag=0																					                      # Initialize xdr d
 display_usage() {               # Display usage table.
     cat <<EOF
 Overview:
-  Display pre-filled template to copy/paste into Service Manager for dispatch.
+    Display pre-filled template to copy/paste into Service Manager for dispatch.
 
 Synopsis:
   Disk templates:
-  `basename $0` -d (<FSUUID>)	# Print MDS/SS/Mixed disk dispatch template, defaults to -k if no or invalid FSUUID specified.
-  `basename $0` -e (<FSUUID>)	# Combines -d and -s to print dispatch template, and then update SR#.
-  `basename $0` -k			# Runs Kollin's show_offline_disks script first, then asks for fsuuid for dispatch.
+    `basename $0` -d (<FSUUID>)	# Print MDS/SS/Mixed disk dispatch template, defaults to -k if no or invalid FSUUID specified.
+    `basename $0` -e (<FSUUID>)	# Combines -d and -s to print dispatch template, and then update SR#.
+    `basename $0` -k		# Runs Kollin's show_offline_disks script first, then asks for fsuuid for dispatch.
+    `basename $0` -i		# Internal disk replacement template.
+
+  Examples:
+    `basename $0` -d 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
+    `basename $0` -e 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
+    `basename $0` -k
+    `basename $0` -i
   
   Other:
-  `basename $0` -h			# Display this usage info (help).
-  `basename $0` -s			# Update SR# reported in Kollin's show_offline_disks script.
-  `basename $0` -v			# Display script's current version.
-  `basename $0` -x			# Distribute script to all nodes and set execute permissions.
-  
-Examples:
-  `basename $0` -d 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
-  `basename $0` -e 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
-  `basename $0` -k
+    `basename $0` -h		# Display this usage info (help).
+    `basename $0` -s		# Update SR# reported in Kollin's show_offline_disks script.
+    `basename $0` -v		# Display script's current version.
+    `basename $0` -x		# Distribute script to all nodes and set execute permissions.
 
-Planned additions:
-  `basename $0` -c			# Switch/eth0 connectivity template.
-  `basename $0` -f			# DAE fan repalcement template.
-  `basename $0` -i			# Internal disk replacement template.
-  `basename $0` -l			# LCC replacement template.
-  `basename $0` -n			# Node replacement template.
-  `basename $0` -o			# Reboot / Power On dispatch template.
-  `basename $0` -p			# Power Supply replacment template.
-  `basename $0` -r			# Reseat disk dispatch template.
-  `basename $0` -w			# Private Switch replacement template.
+  Planned additions:
+    `basename $0` -c		# Switch/eth0 connectivity template.
+    `basename $0` -f		# DAE fan repalcement template.
+    `basename $0` -l		# LCC replacement template.
+    `basename $0` -n		# Node replacement template.
+    `basename $0` -o		# Reboot / Power On dispatch template.
+    `basename $0` -p		# Power Supply replacment template.
+    `basename $0` -r		# Reseat disk dispatch template.
+    `basename $0` -w		# Private Switch replacement template.
   
 EOF
   exit 1
@@ -67,7 +78,7 @@ EOF
 cleanup() {                     # Clean-up if script fails or finishes.
   #restore files.. [ -f /usr/sbin/sgdisk.bak ] && /bin/mv /usr/sbin/sgdisk.bak /usr/sbin/sgdisk
   unset fsuuid
-  (( $xdr_disabled_flag )) && echo -e "\n## Enabling Dialhomes (xDoctor/SYR) now.\n" && ssh $INITIAL_MASTER xdoctor --tool --exec=syr_maintenance --method=enable && xDr_Disabled_Flag=0
+  (( $xdr_disabled_flag )) && echo -e "\n## Enabling Dialhomes (xDoctor/SYR) now.\n" && ssh $INITIAL_MASTER xdoctor --tool --exec=syr_maintenance --method=enable && xdr_disabled_flag=0
   
   [[ "$1" != "" && "$2" -ne 0 ]] && echo -e "\n${red}#${clear_color}#${red}# ${1}${clear_color}\n" || echo -e "${clear_color}"
   exit $2
@@ -89,25 +100,16 @@ prepare_disk_template() {       # Prepares input for use in print_disk_template 
     echo -e "${boldwhite}" 
     read -p "# Are you sure you'd like to proceed? (y/n) " -t 60 -n 1 -s unreplaceable_continue 
     echo -e "${clear_color}" 
-    [[ "$unreplaceable_continue" == y || "$unreplaceable_continue" == Y ]] && echo -e "\n" || cleanup "Please try again once the disk is recovered." 99
+    [[ "$unreplaceable_continue" =~ [yY] ]] && echo -e "\n" || cleanup "Please try again once the disk is recovered." 99
   fi
   fail_count=0
-  node_location="`echo $HOSTNAME | cut -c 1-4`_address"; 
   disk_size=`df --block-size=1T | awk '/mauiss/ {n=$2}; END {print n}'`
-  cloudlet_name=`awk -F",|\"" '/localDb/ {print $(NF-3)}' $cm_cfg`
-  atmos_ver=`awk -F\" '/version\" val/ {print $4}' /etc/maui/nodeconfig.xml`
-  atmos_ver3=`awk -F\" '/version\" val/ {print substr($4,1,3)}' /etc/maui/nodeconfig.xml`
-  atmos_ver5=`awk -F\" '/version\" val/ {print substr($4,1,5)}' /etc/maui/nodeconfig.xml`
-  atmos_ver7=`awk -F\" '/version\" val/ {print substr($4,1,7)}' /etc/maui/nodeconfig.xml`
-  site_id=`awk '/site/ {print ($3)}' /etc/maui/reporting/syr_reporting.conf`
   set_customer_contact_info
-  get_hardware_gen
   set_disk_part_info $hardware_gen $disk_size $atmos_ver3
   set_disk_type $hardware_gen $atmos_ver3
   [[ if_mixed ]] && replace_method="Admin GUI or CLI" || replace_method="CLI"
   [[ -a /var/service/fsuuid_SRs/${fsuuid}.txt ]] && sr_number=`awk -F, 'NR==1 {print $2}' /var/service/fsuuid_SRs/${fsuuid}.txt`
   disk_slot=$(psql -U postgres -d rmg.db -h $RMG_MASTER -t -c "select d.slot from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='$fsuuid';" | tr -d ' |\n') 
-  tla_number=`awk '/hardware/ {if (length($NF)!=14) print "Not found";else print $NF }' /etc/maui/reporting/tla_reporting.conf`
   psql -U postgres -d rmg.db -h $RMG_MASTER -c "select d.devpath,d.slot,d.status,d.connected,d.slot_replaced,d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='$fsuuid';" | egrep -v '^$|row'
   print_disk_template
   
@@ -116,7 +118,7 @@ prepare_disk_template() {       # Prepares input for use in print_disk_template 
 
 print_disk_template() {         # Prints disk template to screen.
   printf '%.0s=' {1..100}
-  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\n\nReason for Dispatch: Disk Ready for Replacement\nOnline (Y/N): no\n\nSystem Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \ndisk_type:\t${disk_type}\nDisk Model:\t${model_num}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\nDAE Slot#:\t$disk_slot\nCapacity:\t$disk_size TB\nFSUUID:\t\t${fsuuid}"
+  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nDispatch Reason: Disk Ready for Replacement\nDisk online (Y/N): no\n\nSystem Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDisk Model:\t${model_num}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\nDAE Slot#:\t$disk_slot\nCapacity:\t$disk_size TB\nFSUUID:\t\t${fsuuid}"
   echo -e "\nCE Action Required:  On Site"
   printf '%.0s-' {1..30}
   echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} DAE Disk for Atmos ${atmos_ver5} using ${replace_method}.\n3- Notify ROCC when disk replacement is completed."
@@ -223,7 +225,7 @@ set_customer_contact_info() {		# Set Customer contact info/location.
   iad0_address="AT&T Solutions_Ashburn IDC_SMS Managed Utility - STaaS\n21571 BEAUMEADE CIR\nASHBURN, VA  20147"												                      # iad cstaas
   
   eval is_att_rocc_system=\$$node_location
-  if [[ ${#is_att_rocc_system} -gt 1 && "${is_att_rocc_system}" == "AT&T"[\ ]* ]] ; then
+  if [[ ${#is_att_rocc_system} -gt 0 && "${is_att_rocc_system}" == "AT&T"[\ ]* ]] ; then
     cust_con_name="rocc@roccops.com"
     cust_con_numb="877-362-0253"
     cust_con_time="(7x24x356)"
@@ -319,11 +321,11 @@ get_fsuuid() { 						      # Get fsuuid from user.
     echo "# Please choose a fsuuid from an offline disk: "
   fi
   echo -e "\n${offline_disks}\n\E[21m${clear_color}${light_green}"
-  read -p "## Enter fsuuid for disk to dispatch: " -t 60 -n 36 fsuuid
+  read -p "# Enter fsuuid for disk to dispatch: " -t 60 -n 36 fsuuid
   echo -e "${clear_color}\n"
-  if [[ $fsuuid != [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f] ]]
+  if [[ validate_fsuuid ]]
     then fail_count=$((fail_count+1))
-      if [ "$fail_count" -gt 4 ] ;then cleanup "Please try again with a valid fsuuid." 60;fi
+      [[ "$fail_count" -gt 4 ]] && cleanup "Please try again with a valid fsuuid." 60
       clear
       echo -e "\n\n${red}# Invalid fsuuid attempt: $fail_count, please try again.${clear_color}"
       get_fsuuid $fail_count
@@ -334,14 +336,24 @@ get_fsuuid() { 						      # Get fsuuid from user.
 }
 
 validate_fsuuid() {					    # Validate fsuuid against regex pattern.
-  [[ "$OPTARG" == $NULL || "$OPTARG" == "" || "$OPTARG" == " " ]] && get_fsuuid 0 || fsuuid=$OPTARG
-  if [[ "$fsuuid" != [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f] ]]
-    then echo -e "${red}# Invalid fsuuid.${clear_color}"
-    get_fsuuid
-    else return 0
+  valid_fsuuid='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' # Regex to confirm a valid UUID - only allows for hexidecimal characters.
+  valid_fsuuid_on_host=$(psql -t -U postgres rmg.db -h $RMG_MASTER -c "select fs.fsuuid from disks d join fsdisks fs ON d.uuid=fs.diskuuid where d.nodeuuid='$node_uuid' and fs.fsuuid='$fsuuid'"| awk 'NR==1{print $1}')
+  if [[ ! ${#valid_fsuuid_on_host} -eq 36 ]] ; then
+    echo -e "${red}# FSUUID not found on host.\n# Please try again.${clear_color}"
+    get_fsuuid $fail_count
+  else
+    [[ "$fsuuid" =~ $valid_fsuuid ]] && return 0 || echo -e "${red}# Invalid fsuuid.${clear_color}" && get_fsuuid
   fi
-  
   return 1
+  
+  # valid_fsuuid='^[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}$' # Regex to confirm a valid UUID - allows for letters g-z, which aren't allowed 
+  # valid_fsuuid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' # Regex to confirm a valid UUID - allows for capital letters, which aren't allowed.
+
+  # if [[ "$fsuuid" != [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f] ]]
+    # then echo -e "${red}# Invalid fsuuid.${clear_color}"
+    # get_fsuuid
+    # else return 0
+  # fi
 }
 
 get_abs_path() { 					      # Find absolute path of script.
@@ -358,6 +370,15 @@ distribute_script() {				    # Distribute script across all nodes, and sets perm
   set_permissions=`mauirexec "chmod +x ${full_path}" | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l`
   [ $set_permissions -eq 0 ] && echo -e "${light_green}Permissions set!${clear_color}\n\n" || cleanup "Failed to set permissions across all nodes" 22
   exit 0
+}
+
+update_script(){                # Allows for updating script with passcode.
+  full_path=`get_abs_path $0`; this_script=`basename "$full_path"`; this_script_dir=`dirname "$full_path"`
+  [[ "$script_name" == "$this_script" ]] || cleanup "Please rename script to $script_name and try again." 20
+  read -p "Update script: please enter passcode: " -t 60 -s -n 4 update_passcode_ver
+  echo
+  [[ ${update_passcode_ver} == "7777" ]] && vim ${full_path}_tmp && /bin/mv -f ${full_path}_tmp ${full_path} && chmod +x ${full_path} && cleanup "Updated successfully!" 0 || cleanup "update failed..." 254
+  cleanup "Wrong passcode entered. Exiting." 255
 }
 
 init_colors() {						      # Initialize text color variables.
@@ -386,11 +407,72 @@ default='\E[0m'
 clear_color='\E[0m'
 }
 
+prep_int_disk_template() {      # Prepares input for use in print_disk_template function.
+  # Check if disk is ready for replacement:
+  echo -en "\n${light_green}# Enter internal disk's device path (sda/sdb): "
+  read -t 60 -n 3 internal_disk_dev_path
+  echo -e "\n${clear_color}"
+  set_customer_contact_info
+  int_dev_path="/dev/${internal_disk_dev_path}"
+  
+  #set_disk_part_info $hardware_gen $disk_size $atmos_ver3
+  case "${hardware_gen}:${atmos_ver3}" in   						# hardware_gen:atmos_ver3
+    1:*)  	                        # Gen 1 hardware
+      part_num='105-000-160'				  
+      int_disk_description='250GB 7.2K RPM 3.5IN DELL SATA DRV/SLED'
+      ;;		
+    2:*)  	                        # Gen 2 Hardware 
+      part_num='105-000-160'
+      int_disk_description='250GB 7.2K RPM 3.5IN DELL SATA DRV/SLED'
+      ;;
+    3:*)                            # Gen 3 Hardware
+      part_num='105-000-316-00'
+      int_disk_description='300GB 2.5" 10K RPM SAS 512bps DDA ATMOS'
+      ;;
+    *) cleanup "Hardware Gen / Internal disk type detection failed." 130
+      ;;
+    esac
+
+  internal_uuid=$(mdadm -D /dev/md126 | awk '/UUID/{print $3}')
+  disk_type='Internal'
+  [[ ${internal_disk_dev_path} =~ "sd"[ab] ]] || cleanup "Internal disk device path not recognized." 131
+  [[ ${internal_disk_dev_path} == "sda" ]] && disk_sn_uuid=$(smartctl -i /dev/sg0 | awk '/Serial number/{print $3}')
+  [[ ${internal_disk_dev_path} == "sdb" ]] && disk_sn_uuid=$(smartctl -i /dev/sg1 | awk '/Serial number/{print $3}')
+  replace_method=" - FRU Replacement Procedure"
+  [[ -a /var/service/fsuuid_SRs/${internal_uuid}.txt ]] && sr_number=`awk -F, 'NR==1 {print $2}' /var/service/fsuuid_SRs/${internal_uuid}.txt`
+  [[ -a /var/service/fsuuid_SRs/${internal_serial}.txt ]] && sr_number=`awk -F, 'NR==1 {print $2}' /var/service/fsuuid_SRs/${internal_serial}.txt`
+  
+  # psql -U postgres -d rmg.db -h $RMG_MASTER -c "select d.devpath,d.slot,d.status,d.connected,d.slot_replaced,d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='$internal_uuid';" | egrep -v '^$|row'
+  # psql -U postgres -d rmg.db -h $RMG_MASTER -tx -c "select * from disks d where d.devpath='${int_dev_path}';"
+  
+  print_int_disk_template 
+  
+  return 0
+}
+
+print_int_disk_template() {     # Prints disk template to screen.
+  printf '%.0s=' {1..100}
+  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: Internal* Disk Replacement\n*Note:\tINTERNAL DISK!!!\n\nSystem Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDescription:\t${int_disk_description}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\nRaid UUID:\t${internal_uuid}\nDev Path:\t${int_dev_path}"
+  echo -e "\nCE Action Required:  On Site"
+  printf '%.0s-' {1..30}
+  echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} *Internal* Disk for Atmos ${atmos_ver5}${replace_method}."
+  if [ $node_location != "lond" ] || [ $node_location != "amst" ]; then echo -e "*Note: If any assistance is needed, contact your FSS."; fi
+  echo -e "\nIssue Description: Failed *internal* disk is ready for replacement."
+  printf '%.0s-' {1..58}
+  echo -e "\n${customer_contact_info}${customer_contact_location}"
+  echo -e "Next Action:\tDispatch CE onsite\nPlease notify the CE to contact ROCC prior to going on site and to complete the above tasks in their entirety.\n ${clear_color}"
+  printf '%.0s=' {1..100}
+  echo -e ""
+  
+  return 0
+}
+
 ###########################################   Start main code..  ###########################################
+## Initialize color variables
 ############################################################################################################
 main() {    ################################################################################################
-## Initialize color variables
 init_colors
+get_hardware_gen
 
 ## Trap keyboard interrupt (control-c)
 trap control_c SIGINT
@@ -402,35 +484,37 @@ trap control_c SIGINT
 [[ $1 == "" || $1 == $NULL || $1 == "-" || $1 == "?" ]] && echo -e "\n${red}Invalid option, see usage:${clear_color}" && display_usage
 
 ## Check for invalid options:
-if ( ! getopts ":cd:e:fiklmnoprsvwx" options ); then echo -e "\n${red}Invalid options, see usage:${clear_color}" && display_usage; fi
+if ( ! getopts ":cd:e:fiklmnoprsuvwxyz" options ); then echo -e "\n${red}Invalid options, see usage:${clear_color}" && display_usage; fi
 
 ## Parse the options:
-while getopts ":cd:e:fiklmnoprsvwx" options
+while getopts ":cd:e:fiklmnoprsuvwxyz" options
 do
     case $options in
     c)  cleanup "Not supported yet, will print switch/eth0 connectivity dispatch template." 99
       ;;
-    d)  validate_fsuuid
-      prepare_disk_template
-      append_dispatch_date
+    d)  fsuuid=$OPTARG
+        validate_fsuuid 
+        prepare_disk_template
+        append_dispatch_date
       ;;
-    e)  validate_fsuuid
-      prepare_disk_template
-      update_sr_num
-      append_dispatch_date
+    e)  fsuuid=$OPTARG
+        validate_fsuuid 
+        prepare_disk_template
+        update_sr_num
+        append_dispatch_date
       ;;
     f)  cleanup "Not supported yet, will print DAE fan dispatch template." 99
             ;;
-    i)  cleanup "Not supported yet, will print internal disk dispatch template." 99
+    i)  prep_int_disk_template
       ;;
     k)  get_fsuuid
-      prepare_disk_template
+        prepare_disk_template
       ;;
     l)  cleanup "Not supported yet, will print LCC dispatch template." 99
       ;;			
     m)  get_fsuuid 0
-      prepare_disk_template
-      append_dispatch_date
+        prepare_disk_template
+        append_dispatch_date
       ;;
     n)	cleanup "Not supported yet, will print node replacement template." 99
       ;;
@@ -442,6 +526,8 @@ do
       ;;
     s)	update_sr_num
       ;;
+    u)	update_sr_num
+      ;;
     v)	echo -e "# Current Version: $version\n"
         exit 0
       ;;
@@ -449,7 +535,13 @@ do
       ;;
     x)  distribute_script
       ;;
-    :)  [[ "$OPTARG" == "e" || "$OPTARG" == "d" ]] && validate_fsuuid
+    y)  update_script
+        distribute_script
+      ;;
+    z)  update_sr_num
+      ;;
+    :)  
+      [[ "$OPTARG" == "e" || "$OPTARG" == "d" ]] && validate_fsuuid
       [[ "$OPTARG" == "e" || "$OPTARG" == "d" ]] && prepare_disk_template
       [[ "$OPTARG" == "e" ]] && update_sr_num
       [[ "$OPTARG" != "e" && "$OPTARG" != "d" ]] && display_usage
