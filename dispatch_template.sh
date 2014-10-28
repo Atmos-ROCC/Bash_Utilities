@@ -6,13 +6,13 @@ i#!/bin/bash
 #                                                                   #
 # Created by Claiton Weeks (claiton.weeks@emc.com)                  #
 #                                                                   #
-# Templates based off of Robert Schloss's dispatch templates.       #
-#           --Thanks Robert!                                        #
+# Templates based off of CS ROCC team's dispatch templates.         #
+#           --Thanks Robert, Kollin, Leo, and everyone else.        #
 #                                                                   #
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.2.4a                                                    #
+  version=1.2.4b                                                    #
 #####################################################################
 
 ############################################################################################################
