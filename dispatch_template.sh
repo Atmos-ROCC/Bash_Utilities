@@ -3,16 +3,16 @@ i#!/bin/bash
 # dispatch_template.sh  -- all Atmos versions                       #
 #                                                                   #
 # Outputs pre-filled dispatch templates for Atmos.                  #
+# Can troubleshoot some issues - see options list.                  #
 #                                                                   #
-# Created by Claiton Weeks (claiton.weeks@emc.com)                  #
-#                                                                   #
+# Created by Claiton Weeks (claiton.weeks<at>emc.com)               #
 # Templates based off of CS ROCC team's dispatch templates.         #
 #           --Thanks Robert, Kollin, Leo, and everyone else.        #
 #                                                                   #
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.2.4b                                                    #
+  version=1.2.4j                                                    #
 #####################################################################
 
 ############################################################################################################
@@ -23,7 +23,7 @@ i#!/bin/bash
   export RMG_MASTER=$(awk -F, '/localDb/ {print $(NF-1)}' $cm_cfg)										# top_view.py -r local | sed -n '4p' | sed 's/.*"\(.*\)"[^"]*$/\1/'
   export INITIAL_MASTER=$(awk -F"\"|," '/systemDb/ {print $(NF-2)}' $cm_cfg)				  # show_master.py |  awk '/System Master/ {print $NF}'
   xdr_disabled_flag=0																					                      # Initialize xdr disable flag.
-  node_uuid=$(dmidecode | grep -i uuid | awk {'print $2'})                           # Find UUID of current node.
+  node_uuid=$(dmidecode | grep -i uuid | awk '{print $2}')                           # Find UUID of current node.
   cloudlet_name=$(awk -F",|\"" '/localDb/ {print $(NF-3)}' $cm_cfg)
   atmos_ver=$(awk -F\" '/version\" val/ {print $4}' /etc/maui/nodeconfig.xml)
   atmos_ver3=$(awk -F\" '/version\" val/ {print substr($4,1,3)}' /etc/maui/nodeconfig.xml)
@@ -32,6 +32,7 @@ i#!/bin/bash
   site_id=$(awk '/site/ {print ($3)}' /etc/maui/reporting/syr_reporting.conf)
   node_location="$(echo $HOSTNAME | cut -c 1-4)_address"
   tla_number=$(awk '/hardware/{if (length($NF)!=14) print "Not found";else print $NF}' /etc/maui/reporting/tla_reporting.conf)
+  print_test_switch=0
   
 ############################################################################################################
 ###########################################       Functions      ###########################################
@@ -53,10 +54,8 @@ ${light_cyan}Synopsis:
     `basename $0` -i		# Internal disk replacement template.
     
     Examples:
-    `basename $0` -d 
-    `basename $0` -d 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
-    `basename $0` -e
-    `basename $0` -e 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
+    `basename $0` -d        -or-        `basename $0` -d 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
+    `basename $0` -e        -or-        `basename $0` -e 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
     
 ${lt_gray}  Other:
     `basename $0` -h		# Display this usage info (help).
@@ -83,6 +82,8 @@ EOF
 cleanup() {                     # Clean-up if script fails or finishes.
   #restore files.. [ -f /usr/sbin/sgdisk.bak ] && /bin/mv /usr/sbin/sgdisk.bak /usr/sbin/sgdisk
   unset fsuuid
+  unset sr_number
+  unset new_sr_num
   (( $xdr_disabled_flag )) && echo -e "\n## Enabling Dialhomes (xDoctor/SYR) now.\n" && ssh $INITIAL_MASTER xdoctor --tool --exec=syr_maintenance --method=enable && xdr_disabled_flag=0
   
   [[ "$1" != "" && "$2" -ne 0 ]] && echo -e "\n${red}#${clear_color}#${red}# ${1}${clear_color}\n" || echo -e "${clear_color}"
@@ -113,7 +114,7 @@ prepare_disk_template() {       # Prepares input for use in print_disk_template 
   set_disk_part_info $hardware_gen $disk_size $atmos_ver3
   set_disk_type $hardware_gen $atmos_ver3
   [[ if_mixed ]] && replace_method="Admin GUI or CLI" || replace_method="CLI"
-  [[ -a /var/service/fsuuid_SRs/${fsuuid_var}.txt ]] && sr_number=`awk -F, 'NR==1 {print $2}' /var/service/fsuuid_SRs/${fsuuid_var}.txt`
+  validate_fsuuid_text_file
   disk_slot=$(psql -U postgres -d rmg.db -h $RMG_MASTER -t -c "select d.slot from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='${fsuuid_var}';" | tr -d ' |\n') 
   psql -U postgres -d rmg.db -h $RMG_MASTER -c "select d.devpath,d.slot,d.status,d.connected,d.slot_replaced,d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='${fsuuid_var}';" | egrep -v '^$|row'
   print_disk_template
@@ -143,7 +144,7 @@ is_disk_replaceable () { 			  # Checks the status of the recovery and replacemen
   [[ $(echo ${#disk_sn_uuid}) -ne 8 ]] && return 1
   unrec_obj_num=$(psql -U postgres rmg.db -h ${RMG_MASTER} -t -c "select unrecoverobj from recoverytasks where fsuuid='${fsuuid_var}'"| awk 'NR==1{print $1}')
   impacted_obj_num=$(psql -U postgres rmg.db -h ${RMG_MASTER} -t -c "select impactobj from recoverytasks where fsuuid='${fsuuid_var}'"| awk 'NR==1{print $1}')
-  [[ ${#unrec_obj_num} -eq 0 ]] && percent_recovered=$(echo -e ${cyan}"Not found"${white}) || [[ ${unrec_obj_num} -eq 0 || ${impacted_obj_num} -eq 0 ]] && percent_tmp=0 || percent_tmp=$(echo "scale=6; 100-${unrec_obj_num}*100/${impacted_obj_num}"|bc|cut -c1-5)
+  [[ ${#unrec_obj_num} -eq 0 ]] && percent_recovered=$(echo -e ${light_cyan}"Not found"${white}) || [[ ${unrec_obj_num} -eq 0 || ${impacted_obj_num} -eq 0 ]] && percent_tmp=0 || percent_tmp=$(echo "scale=6; 100-${unrec_obj_num}*100/${impacted_obj_num}"|bc|cut -c1-5)
   percent_recovered=$(echo -e ${light_yellow}${percent_tmp}"%"${lt_gray})
   clear; echo -e "\n\n"
   
@@ -182,36 +183,70 @@ is_disk_replaceable () { 			  # Checks the status of the recovery and replacemen
   return 0
 }
 
+validate_fsuuid_text_file(){
+  # Append dispatched time to show_offline_disks text file. Need to revise logic to consider for no SR # or no #session.
+  [[ -z $fsuuid_var ]] && get_fsuuid
+  if [[ ! -e /var/service/fsuuid_SRs/${fsuuid_var}.txt ]]; then 
+    echo -e "${red}# No show_offline_disks text file found for fsuuid: ${fsuuid_var}! ${clear_color}"
+    read -p "# Would you like to create the file? (y/Y) " -n 1 -s -t 120 create_text_file_flag
+    if [[ $create_text_file_flag ]]; then
+      [[ -z $sr_number ]] && { read -p "# Enter new SR#: " -t 600 -n 8 new_sr_num && sr_number=${new_sr_num} || cleanup "Timeout: No SR# given." 181; }
+      echo -en "${fsuuid_var},${sr_number}" > /var/service/fsuuid_SRs/${fsuuid_var}.txt
+      validate_fsuuid_text_file
+      return 0
+    else cleanup "File not created." 191
+    fi
+  else
+    [[ $print_test_switch -eq 1 ]] && echo "test validate_fsuuid_text_file 1"
+    #Check that the file is valid.. fsuuid,sr#session..etc.
+    #file_text=$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)
+    [[ ! "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*${fsuuid_var}.* ]] && sed -i "1 s/^/${fsuuid_var}/;q" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+    [[ ! "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*,.* ]] && sed -i "1 s/${fsuuid_var}/&,/;q" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+    [[ "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*,[0-9]{8}.* ]] && sr_number=$(awk -F",|-D|_|#" 'NR==1 {print $2}' /var/service/fsuuid_SRs/${fsuuid_var}.txt) || update_sr_num 1 
+    # validate sr number?
+    [[ ! "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*${sr_number}.* ]] && update_sr_num 2
+    [[ ! "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*session.* ]] && echo "No Session number found."
+        [[ $print_test_switch -eq 1 ]] && echo "test validate_fsuuid_text_file 2"
+
+    return 0
+  fi
+  return 2
+}
+
 update_sr_num() {					      # Change the SR number in show_offline_disks script text file.
-  echo -e "# ${red}You've selected to append a new SR to the show_offline_disks script.\nPlease ensure the new SR has been opened against Site ID: ${site_id} TLA: ${tla_number} Host: $HOSTNAME" 		               # Subject: ${New_Subject}"
-  read -p "# Enter new SR#: " -t 600 -n 8 new_sr_num || cleanup "Timeout: No SR# given." 181
-  
-  ## Write new SR num to txt file.
-  [[ -e /var/service/fsuuid_SRs/${fsuuid_var}.txt ]] && sed -i "s/,/,${new_sr_num}_origSR-/" /var/service/fsuuid_SRs/${fsuuid_var}.txt && echo -e "\n# SR# ${new_sr_num} has been added to the show_offline_disks file.${clear_color}" && return 0
-  
-  # To help SAMs meet MBO, it's proposed to open new SRs for dispatchments: // waiting for further info
-  # echo -e "\n# Please close SR# ${sr_number} against the new SR# ${new_sr_num} ${clear_color}" 					#Include Site, tla_number, Node
-  # If fail...
-  return 1
+  if [[ $1 -eq 1 ]]; then
+    [[ -z "$sr_number" ]] && { echo -e "${red}# No SR# found in show_offline_disks text file. If new SR is needed, use -u option for site/tla info.${clear_color}";read -p "# Enter SR#: (ctrl-c to quit)" -t 600 -n 8 new_sr_num && { echo; sr_number=${new_sr_num}; } || cleanup "Timeout: No SR# given." 181; }
+    sed -i "1 s/,/,${new_sr_num}/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+  elif [[ $1 -eq 2 ]]; then
+    echo "# SR# given doesn't match number in show_offline_disks text file. Would you like to update the text file? (y/Y) "
+    read -s -n 1 -t 120 update_sr_num_flag;
+    [[ "${update_sr_num_flag}" =~ [yY] ]] || return 2
+    sed -i "1 s/,/,${new_sr_num}_origSR-/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+  else
+    echo -e "# ${red}You've selected to append a new SR to the show_offline_disks script.\nPlease ensure the new SR has been opened against Site ID: ${site_id} TLA: ${tla_number} Host: $HOSTNAME" 		               # Subject: ${New_Subject}"
+    validate_fsuuid_text_file
+    [[ -z "$new_sr_num" ]] && read -p "# Enter new SR#: " -t 600 -n 8 new_sr_num || cleanup "Timeout: No SR# given." 181
+    # validate sr number?      
+    ## Write new SR num to txt file.
+    sed -i "1 s/,/,${new_sr_num}_origSR-/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+    echo -e "\n# SR# ${new_sr_num} has been added to the show_offline_disks text file.${clear_color}"
+  fi
+  return 0
 }
 
 append_dispatch_date() {			  # Appends dispatch date in show_offline_disks script text file.
-  # Append dispatched time to show_offline_disks text file. Need to revise logic to consider for no SR # or no #session.
-  if [[ ! -e /var/service/fsuuid_SRs/${fsuuid_var}.txt ]]; then 
-    [[ -z $fsuuid_var ]] && get_fsuuid
-    if [[ -z $sr_number ]]; then  
-      read -p "# Enter new SR#: " -t 600 -n 8 new_sr_num && sr_number=${new_sr_num} || cleanup "Timeout: No SR# given." 181
-    fi
-    echo -en "${fsuuid_var},${sr_number}" > /var/service/fsuuid_SRs/${fsuuid_var}.txt
+  validate_fsuuid_text_file  
+  if [[ "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*-Dispatched_[0-1][0-9]-[0-3][0-9]-[0-9][0-9]_.* ]]; then 
+    echo -e "${red}# Dispatch date already appended to file. Please check to ensure this disk hasn't already been dispatched against.${clear_color} " 
+    read -p "# Would you like to proceed anyways and update the dispatch date? (y/Y) " -s -n 1 -t 120 redispatch_flag
+    [[ ${redispatch_flag} =~ [yY] ]] || cleanup "" 192
+    sed -i "s/-Dispatched_[0-1][0-9]-[0-3][0-9]-[0-9][0-9]_/-Dispatched_$(date +%m-%d-%y)_/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+  else 
+    sed -i "1s/\(,[0-9]*\)\([#_]\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
   fi
-  
-  sed -i "s/\(,[0-9]*\)\([#_]\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt; echo -e "\n# Dispatch date has been appended to show_offline_disks text file. ${clear_color}"; return 0
-  #Include Site, tla_number, Node
-  
-  ## have mroe work to do here.... blah blah
-    
-  # If fail...
-  return 1
+  echo -e "\n${light_green}# Dispatch date has been appended to show_offline_disks text file: ${clear_color}"
+  awk -F"," 'NR==1 {print $0}' /var/service/fsuuid_SRs/${fsuuid_var}.txt
+  return 0
 }
 
 set_customer_contact_info() {		# Set Customer contact info/location.
@@ -241,12 +276,13 @@ set_customer_contact_info() {		# Set Customer contact info/location.
   iad0_address="AT&T Solutions_Ashburn IDC_SMS Managed Utility - STaaS\n21571 BEAUMEADE CIR\nASHBURN, VA  20147"												                      # iad cstaas
   
   eval is_att_rocc_system=\$$node_location
-  if [[ ${#is_att_rocc_system} -gt 0 && "${is_att_rocc_system}" == "AT&T"[\ ]* ]] ; then
+  if [[ ${#is_att_rocc_system} -gt 0 && "${is_att_rocc_system}" =~ "AT&T"[\ ]* ]] ; then
     customer_name="ROCC"
     cust_con_name="rocc@roccops.com"
     cust_con_numb="877-362-0253"
     cust_con_time="(7x24x356)"
     customer_contact_location="\nSite Location: \n${is_att_rocc_system}\n"
+    customer_contact_info="Contact Name:\t${cust_con_name}\nContact Number:\t${cust_con_numb}\nContact Time:\t${cust_con_time}"
   else
     customer_name="customer"
     echo -e "${light_green}"
@@ -255,15 +291,13 @@ set_customer_contact_info() {		# Set Customer contact info/location.
     read -p "# Enter customer's available contact time: " -t 300 cust_con_time || cleanup "Timed out. Please get the information and try again." 113
     read -p "# Enter site's address: (Press \"Enter\" to skip..)" -t 300 cust_con_location || cleanup "Timed out. Please get the information and try again." 114
     echo -e "${clear_color}"
+    customer_contact_info="Contact Name:\t${cust_con_name}\nContact Number:\t${cust_con_numb}\nContact Time:\t${cust_con_time}"
+    [[ ${#cust_con_location} -gt 1 ]] && customer_contact_location="\nLocation: ${cust_con_location}\n" || customer_contact_location=""
   fi
-  
-  customer_contact_info="Contact Name:\t${cust_con_name}\nContact Number:\t${cust_con_numb}\nContact Time:\t${cust_con_time}"
-  [[ ${#cust_con_location} -gt 1 ]] && customer_contact_location="\nLocation: ${cust_con_location}\n" || customer_contact_location=""
-  
   return 0
 }
 
-set_disk_type() {					      # Gets and sets disk type.
+set_disk_type() {					      # Sets disk type.
   if_mixed=$(ssh $RMG_MASTER grep dmMixDriveMode /etc/maui/maui_cfg.xml | grep -c true)
   (( $if_mixed )) && disk_type="MIXED SS/MDS" && return 0
   
@@ -331,43 +365,59 @@ get_hardware_gen() {				    # Gets and sets HW Gen.
 }
 
 get_fsuuid() { 						      # Get fsuuid from user.
+  [[ ${print_test_switch} -eq 1 ]] && echo "test get_fsuuid 1"
   if [[ $1 -eq 0 ]]
   then
-    echo -e "\n## Please wait... running ${light_green}show_offline_disks.sh${clear_color}\n"
+    [[ ${print_test_switch} -eq 1 ]] && echo "test get_fsuuid 2"
+    echo -e "\n# Please wait... running ${light_green}show_offline_disks.sh${clear_color}"
     offline_disks=$(/var/service/show_offline_disks.sh -l)
+    [[ -z $offline_disks ]] && { echo -e "${light_green}# No offline disks found.\n# Exiting.${clear_color}"; cleanup "" 0; }
   else 
+    [[ ${print_test_switch} -eq 1 ]] && echo "test get_fsuuid 3"
     echo "# Please choose a fsuuid from an offline disk: "
   fi
+  
+  [[ ${print_test_switch} -eq 1 ]] && echo "test get_fsuuid 4"
   echo -e "\n${offline_disks}\n\E[21m${clear_color}${light_green}"
   read -p "# Enter fsuuid for disk to dispatch: " -t 120 -n 36 fsuuid_var || cleanup "Timeout: FSUUID not given." 151
   echo -e "${clear_color}\n"
-  if [[ ! validate_fsuuid ]]
-    then fail_count=$((fail_count+1))
-      [[ "$fail_count" -gt 4 ]] && cleanup "Please try again with a valid fsuuid." 60
-      #clear
-      echo -e "\n\n${red}# Invalid fsuuid attempt: $fail_count, please try again.${clear_color}"
-      get_fsuuid $fail_count
-    else dev_path=$(blkid | grep ${fsuuid_var} | sed 's/1.*//')
+  if [[ ! validate_fsuuid ]]; then
+  [[ ${print_test_switch} -eq 1 ]] && echo "test get_fsuuid 6"
+    fail_count=$((fail_count+1))
+    [[ "$fail_count" -gt 4 ]] && cleanup "Please try again with a valid fsuuid." 60
+    #clear
+    echo -e "\n\n${red}# Invalid fsuuid attempt: $fail_count, please try again.${clear_color}"
+    get_fsuuid $fail_count
+    else [[ -n ${fsuuid_var} ]] && dev_path=$(blkid | grep ${fsuuid_var} | sed 's/1.*//')
+  [[ ${print_test_switch} -eq 1 ]] && echo "test get_fsuuid 7"
     return 0
   fi 
+  [[ ${print_test_switch} -eq 1 ]] && echo "test get_fsuuid 8"
   return 1
+  [[ ${print_test_switch} -eq 1 ]] && echo "test get_fsuuid 9"
+
 }
 
 validate_fsuuid() {					    # Validate fsuuid against regex pattern.
+  [[ ${print_test_switch} -eq 1 ]] && echo "test validate_fsuuid 10"
   if [[ -z ${fsuuid_var} ]]; then
     get_fsuuid $fail_count
   else
     valid_fsuuid='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' # Regex to confirm a valid UUID - only allows for hexidecimal characters.
     valid_fsuuid_on_host=$(psql -t -U postgres rmg.db -h $RMG_MASTER -c "select fs.fsuuid from disks d join fsdisks fs ON d.uuid=fs.diskuuid where d.nodeuuid='$node_uuid' and fs.fsuuid='${fsuuid_var}'"| awk 'NR==1{print $1}')
     if [[ ! ${#valid_fsuuid_on_host} -eq 36 ]] ; then
+      [[ ${print_test_switch} -eq 1 ]] && echo "test validate_fsuuid 12"
       echo -e "${red}# FSUUID not found on host.\n# Please try again.${clear_color}"
       get_fsuuid $fail_count
     else
+      [[ ${print_test_switch} -eq 1 ]] && echo "test validate_fsuuid 13"
       [[ "${fsuuid_var}" =~ $valid_fsuuid ]] && return 0 || echo -e "${red}# Invalid fsuuid.${clear_color}" && get_fsuuid
     fi
+    [[ ${print_test_switch} -eq 1 ]] && echo "test validate_fsuuid 14"
     return 1
   fi
   
+  [[ ${print_test_switch} -eq 1 ]] && echo "test validate_fsuuid 15"
   return 1
   # valid_fsuuid='^[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}$' # Regex to confirm a valid UUID - allows for letters g-z, which aren't allowed 
   # valid_fsuuid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' # Regex to confirm a valid UUID - allows for capital letters, which aren't allowed.
@@ -376,6 +426,8 @@ validate_fsuuid() {					    # Validate fsuuid against regex pattern.
     # get_fsuuid
     # else return 0
   # fi
+    [[ ${print_test_switch} -eq 1 ]] && echo "test validate_fsuuid 16"
+
 }
 
 get_abs_path() { 					      # Find absolute path of script.
@@ -387,10 +439,11 @@ distribute_script() {				    # Distribute script across all nodes, and sets perm
   [[ "$script_name" == "$this_script" ]] || cleanup "Please rename script to $script_name and try again." 20
   echo -en "\n# Distributing script across all nodes.. "
   copy_script=$(mauiscp ${full_path} ${full_path} | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
-  [ $copy_script -eq 0 ] && echo -e "${light_green}Done!${clear_color} ($this_script copied to all nodes)" || cleanup "Failed to copy $this_script to all nodes" 21
+  [ $copy_script -eq 0 ] && echo -e "${light_green}Done!${clear_color} ($this_script copied to all nodes)" || { fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
   echo -en "# Setting script permissions across all nodes.. "
   set_permissions=$(mauirexec "chmod +x ${full_path}" | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
-  [ $set_permissions -eq 0 ] && echo -e "${light_green}Permissions set!${clear_color}\n\n" || cleanup "Failed to set permissions across all nodes" 22
+  [ $set_permissions -eq 0 ] && echo -e "${light_green}Permissions set!${clear_color}\n\n" || { fail_flag=1; fail_text="Failed to set permissions across all nodes"; }
+  [[ ${fail_flag} -eq 1 ]] && { full_path=$(get_abs_path $0); mauirexec -e "${full_path} -v" | awk '/Output/{n=$NF;m++}; !/Output|^$|Runnin|is 0|dispatch/{l++;print n": Error "}';cleanup "${fail_text}" 21; }
   exit 0
 }
 
@@ -430,56 +483,96 @@ clear_color=$(echo -e "\E[0m")
 }
 
 prep_int_disk_template() {      # Prepares input for use in print_int_disk_template function.
-  if [ -z ${cooling_fan_num} ] || [ -n ${cooling_fan_num} ]; then
-    echo -en "\n${light_green}# Enter internal disk's device path (sda/sdb): "
-    read -t 120 -n 3 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
-    echo -e "\n${clear_color}"
-  fi
-  
-  set_customer_contact_info
-  int_dev_path="/dev/${internal_disk_dev_path}"
-  
-  #set_disk_part_info $hardware_gen $disk_size $atmos_ver3
   case "${hardware_gen}:${atmos_ver3}" in   						# hardware_gen:atmos_ver3
     1:*)  	                        # Gen 1 hardware
+      if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
+        echo -en "\n${light_green}# Gen1: Enter internal disk's device slot/ID ( 0:0:0 / 0:0:1 ) [0 or 1 is fine]: "
+        read -t 120 -n 5 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
+        echo -e "\n${clear_color}"
+      fi
+      [[ ${internal_disk_dev_path} == "0" ]] && internal_disk_dev_path="0:0:0"
+      [[ ${internal_disk_dev_path} == "1" ]] && internal_disk_dev_path="0:0:1"
+      [[ ${internal_disk_dev_path} =~ "0:0:"[01] ]] || cleanup "Internal disk slot#/ID# not recognized." 131
       part_num='105-000-160'				  
       int_disk_description='250GB 7.2K RPM 3.5IN DELL SATA DRV/SLED'
+      [[ ${internal_disk_dev_path} == "0:0:0" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" && int_drive_loc_note="Drive ID 0:0:0 is the left drive"
+      [[ ${internal_disk_dev_path} == "0:0:1" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" && int_drive_loc_note="Drive ID 0:0:1 is the right drive"
+      omreport storage vdisk controller=0|grep "State"; omreport system alertlog | grep -B1 -A4 ": 2095"
+      omreport system alertlog | grep -A5 ": Critical"; grep -B1 -A3 'Sense key: 3' /var/log/messages
+      print_int_variable_line1="Dev ID/Slot:\t${internal_disk_dev_path}"
+      print_int_variable_line2="Note: Each drive’s slot is labeled 0 or 1 at the node. ${int_drive_loc_note}."
+      # Gen 1 (Dell 1950 III) Server Platform internal 3.5” SATA Drive: 105-000-160 (250GB)   "250GB 7.2K RPM 3.5IN DELL SATA DRV/SLED"
+      # Gen 1 (Dell 1950 III) Server Platform internal 3.5” SATA Drive: 105-000-153 (500GB)   "500GB 7.2K RPM 3.5IN DELL 10K SATA SLED"
+      # Note: 105-000-160 and 105-000-153 are compatible. Refer to Product Compatibility Database for latest compatibility information. (https://alliance.emc.com/Pages/PcdHome.aspx)
       ;;		
     2:*)  	                        # Gen 2 Hardware 
-      part_num='105-000-160'
-      int_disk_description='250GB 7.2K RPM 3.5IN DELL SATA DRV/SLED'
+      if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
+        echo -en "\n${light_green}# Gen2: Enter internal disk's device slot/ID ( 0:0:0 / 0:0:1 ) [0 or 1 is fine]: "
+        read -t 120 -n 5 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
+        echo -e "\n${clear_color}"
+      fi
+      [[ ${internal_disk_dev_path} == "0" ]] && internal_disk_dev_path="0:0:0"
+      [[ ${internal_disk_dev_path} == "1" ]] && internal_disk_dev_path="0:0:1"
+      [[ ${internal_disk_dev_path} =~ "0:0:"[01] ]] || cleanup "Internal disk slot#/ID# not recognized." 131
+      part_num='105-000-179'
+      int_disk_description='DELL 250GB 7.2KRPM SATA2.5IN DK 11G SLED'
+      [[ ${internal_disk_dev_path} == "0:0:0" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" && int_drive_loc_note="Drive ID 0:0:0 is the top drive"
+      [[ ${internal_disk_dev_path} == "0:0:1" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" && int_drive_loc_note="Drive ID 0:0:1 is the bottom drive"
+      omreport storage vdisk controller=0|grep "State"; omreport system alertlog | grep -B1 -A4 ": 2095"
+      omreport system alertlog | grep -A5 ": Critical"; grep -B1 -A3 'Sense key: 3' /var/log/messages
+      print_int_variable_line1="Dev ID/Slot:\t${internal_disk_dev_path}"
+      print_int_variable_line2="Note: Each drive’s slot is labeled 0 or 1 at the node. ${int_drive_loc_note}."
+      # Gen 2 (Dell R610) Server Platform internal 2.5” SATA Drive: 105-000-179   "DELL 250GB 7.2KRPM SATA2.5IN DK 11G SLED"
       ;;
     3:*)                            # Gen 3 Hardware
+      if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
+        echo -en "\n${light_green}# Enter internal disk's device path (sda/sdb): "
+        read -t 120 -n 3 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
+        echo -e "\n${clear_color}"
+      fi
+      int_dev_path="/dev/${internal_disk_dev_path}"
+      [[ ${internal_disk_dev_path} == "a" ]] && internal_disk_dev_path="sda"
+      [[ ${internal_disk_dev_path} == "b" ]] && internal_disk_dev_path="sdb"
+      [[ ${internal_disk_dev_path} =~ "sd"[ab] ]] || cleanup "Internal disk device path not recognized." 131
       part_num='105-000-316-00'
       int_disk_description='300GB 2.5" 10K RPM SAS 512bps DDA ATMOS'
+      internal_uuid=$(mdadm -D /dev/md126 | awk '/UUID/{print $3}')
+      [[ ${internal_disk_dev_path} == "sda" ]] && disk_sn_uuid=$(smartctl -i /dev/sg0 | awk '/Serial number/{print $3}')
+      [[ ${internal_disk_dev_path} == "sdb" ]] && disk_sn_uuid=$(smartctl -i /dev/sg1 | awk '/Serial number/{print $3}')
+      print_int_variable_line1="Raid UUID:\t${internal_uuid}"
+      print_int_variable_line2="Dev Path:\t${int_dev_path}"
+      echo -e "\n${light_cyan}# Checking utilization of disks, please wait 30 seconds: (iostat -xk 10 3 /dev/sda /dev/sdb) ${clear_color}\n" && iostat -xk 10 3 /dev/sda /dev/sdb
+      echo -e "\n${light_cyan}# Checking Raid status: (cat /proc/mdstat) ${clear_color}\n" && cat /proc/mdstat
+      echo -e "\n${light_cyan}# Checking Raid status: (mdadm -D /dev/md126) ${clear_color}\n" && mdadm -D /dev/md126
+      echo -e "\n${light_cyan}# Checking Disk status: (mdadm -E ${int_dev_path}) ${clear_color}\n" && mdadm -E ${int_dev_path}
+      echo -e "\n${light_cyan}# Checking Disk health: (smartctl -x ${int_dev_path}) ${clear_color}\n" && smartctl -x ${int_dev_path}
+      echo -e "\n${light_cyan}# Checking Disk health: (sg_inq ${int_dev_path}) ${clear_color}\n" && sg_inq ${int_dev_path}
       ;;
     *) cleanup "Hardware Gen / Internal disk type detection failed." 130
       ;;
     esac
 
-  internal_uuid=$(mdadm -D /dev/md126 | awk '/UUID/{print $3}')
+  set_customer_contact_info
   disk_type='Internal'
-  [[ ${internal_disk_dev_path} =~ "sd"[ab] ]] || cleanup "Internal disk device path not recognized." 131
-  [[ ${internal_disk_dev_path} == "sda" ]] && disk_sn_uuid=$(smartctl -i /dev/sg0 | awk '/Serial number/{print $3}')
-  [[ ${internal_disk_dev_path} == "sdb" ]] && disk_sn_uuid=$(smartctl -i /dev/sg1 | awk '/Serial number/{print $3}')
   replace_method=" - FRU Replacement Procedure"
-  [[ -a /var/service/fsuuid_SRs/${internal_uuid}.txt ]] && sr_number=$(awk -F, 'NR==1 {print $2}' /var/service/fsuuid_SRs/${internal_uuid}.txt)
-  [[ -a /var/service/fsuuid_SRs/${internal_serial}.txt ]] && sr_number=$(awk -F, 'NR==1 {print $2}' /var/service/fsuuid_SRs/${internal_serial}.txt)
-  
+  [[ -a /var/service/fsuuid_SRs/${internal_uuid}.txt  ]]  && { fsuuid_var=${internal_uuid};validate_fsuuid_text_file; }
+  [[ -a /var/service/fsuuid_SRs/${internal_serial}.txt  ]]  && { fsuuid_var=${internal_serial};validate_fsuuid_text_file; }
   # psql -U postgres -d rmg.db -h $RMG_MASTER -c "select d.devpath,d.slot,d.status,d.connected,d.slot_replaced,d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='$internal_uuid';" | egrep -v '^$|row'
   # psql -U postgres -d rmg.db -h $RMG_MASTER -tx -c "select * from disks d where d.devpath='${int_dev_path}';"
   
-  print_int_disk_template 
-  
+  echo -en "\n${light_green}# Continue printing dispatch template? (y/Y) [Default = y]: ${clear_color}"
+  read -t 120 -n 1 print_internal_disk_temp_flag || cleanup "Timeout: No internal disk given." 171
+  [[ ${print_internal_disk_temp_flag} =~ [yY] ]] && print_int_disk_template 
+  [[ -z ${print_internal_disk_temp_flag} ]] && print_int_disk_template
   return 0
 }
 
 print_int_disk_template() {     # Prints internal disk template to screen.
   printf '%.0s=' {1..80}
-  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: Internal* Disk Replacement\n*Note:\tINTERNAL DISK!!!\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDescription:\t${int_disk_description}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\nRaid UUID:\t${internal_uuid}\nDev Path:\t${int_dev_path}"
+  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: Internal* Disk Replacement\n*Note:\tINTERNAL DISK!!!\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDescription:\t${int_disk_description}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\n${print_int_variable_line1}\n${print_int_variable_line2}"
   echo -e "\nCE Action Required:  On Site"
   printf '%.0s-' {1..30}
-  echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} *Internal* Disk for Atmos ${atmos_ver5}${replace_method}."
+  echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} *Internal* Disk for Atmos ${atmos_ver5}${replace_method}.\n3- Verify correct disk has been replaced by comparing disk serial# shown above, with SN shown on disk."
   if [ $node_location != "lond" ] || [ $node_location != "amst" ]; then echo -e "*Note: If any assistance is needed, contact your FSS."; fi
   echo -e "\nIssue Description: Failed *internal* disk is ready for replacement."
   printf '%.0s-' {1..58}
@@ -510,13 +603,12 @@ prep_dae_fan_template() {       # Prepares input for use in print_dae_fan_templa
     enclosure_number=$(cs_hal list enclosures | awk -F"/dev/sg| " '/\/dev\//{print $2}')
     clear
     export GREP_COLORS="sl=37:cx=37"
-    echo -e "\n\n\n${light_cyan}# Following KB# 86979"
+    echo -e "\n\n\n${cyan}# Following KB# 86979"
     printf '%.0s=' {1..80}
-    echo -e "\n# If not running script on node with issue, see KB above for instructions.\n# Checking all fans: ( 0=A#0 | 1=B#0 | 2=C#0 )${lt_gray}"
+    echo -e "\n# If not running script on node with issue, see KB above for instructions.\n${light_cyan}# Checking all fans: ( 0=A#0 | 1=B#0 | 2=C#0 )${lt_gray}"
     for i in `seq 0 2`; do 
       echo -en "$i: "
-      sg_ses /dev/sg${enclosure_number} --index=coo$i 2>/dev/null | egrep "EMC|INVOP|Predicted|Ident" | egrep --color "^|Noncritical|Critical"
-    done
+      sg_ses /dev/sg${enclosure_number} --index=coo$i 2>/dev/null | egrep "EMC|INVOP|Predicted|Ident" | egrep --color "^|Noncritical|Critical"; done
     echo -e "\n${light_cyan}# Checking DM log: ( /var/log/maui/dm.log )${lt_gray}"
     tac /var/log/maui/dm.log | grep -m3 "Cooling Fan" | tac | egrep --color "^|Cooling Fan [ABC]#0"
     echo -en "\n${light_cyan}# If no alerts after first line, probably false alert: ${clear_color}\n"
@@ -526,10 +618,7 @@ prep_dae_fan_template() {       # Prepares input for use in print_dae_fan_templa
     device_list=$(df -h | awk -F1 '/mauiss/{print $1}')
     for dev in $device_list; do smartctl -l scttempsts $dev | awk '/Current/{print $3}';done | sort | uniq | awk 'ORS="";function red(string) { printf ("%s%s%s%s", "\033[1;31m", string, "\033[0;37m", "C"); }; function green(string) { printf ("%s%s%s%s", "\033[1;32m", string, "\033[0;37m", "C"); };NR==1{n=$1};END { m=$1;if (n < 34){print green(n)" - "} else {print red(n)" - "};{if (m < 37){print green(m)} else {print red(m)}}}' 
     echo -e "\n${lt_gray}# *Note: The temperature of disks will vary based on the model and the activity and location.\n\n${light_cyan}# Either way, dispatch out to have the CE check the DAE for amber alert.\n${lt_gray}# For other DAE hardware errors, check the following logs: \ngrep DAE /var/log/maui/dm.log /var/log/messages\n\tError detected on DAE %s. Error details: %s.${clear_color}\n\n\n"
-    
-    sleep 10; echo -e "\n\n\n\n";prep_dae_fan_template 1
-  fi
-  
+    sleep 6; echo -e "\n\n\n\n";prep_dae_fan_template 1; fi
   [[ "${cooling_fan_num}" =~ [ABCabc]"#0" ]] || cleanup "DAE Fan number not recognized." 131
 
   set_customer_contact_info
@@ -553,9 +642,6 @@ prep_dae_fan_template() {       # Prepares input for use in print_dae_fan_templa
   esac
 
   replace_method=" - FRU Replacement Procedure"
-
-  # [[ -a /var/service/fsuuid_SRs/${internal_uuid}.txt ]] && sr_number=`awk -F, 'NR==1 {print $2}' /var/service/fsuuid_SRs/${internal_uuid}.txt`
-  # [[ -a /var/service/fsuuid_SRs/${internal_serial}.txt ]] && sr_number=`awk -F, 'NR==1 {print $2}' /var/service/fsuuid_SRs/${internal_serial}.txt`
   
   # psql -U postgres -d rmg.db -h $RMG_MASTER -c "select d.devpath,d.slot,d.status,d.connected,d.slot_replaced,d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='$internal_uuid';" | egrep -v '^$|row'
   # psql -U postgres -d rmg.db -h $RMG_MASTER -tx -c "select * from disks d where d.devpath='${int_dev_path}';"
@@ -695,7 +781,8 @@ do
     y)  update_script
         distribute_script
         ;;
-    z)  update_sr_num
+    z)  full_path=$(get_abs_path $0);
+        [[ "${print_test_switch}" -eq 1 ]] && sed -i '30,40s/  print_test_switch=1/  print_test_switch=0/' ${full_path} || sed -i '30,40s/  print_test_switch=0/  print_test_switch=1/' ${full_path}
         ;;
     :)  # Multiple options..
         #echo "testing.. mult options."
@@ -725,11 +812,11 @@ main "$@"
 ############################################################################################################
 ############################################################################################################
 # Testing: 
-# Gen1: 
+# Gen1: dfw01-is01-003
 # Gen2: iad01-is05-006
 # Gen3: lis1d01-is5-001
 # amst a,  rwc a, tkyo a, tyo1/syd1
-# time for x in `cat /var/service/list`; do echo $x;scp /var/service/dispatch_template.sh $x:/var/service/;ssh $x "sh /var/service/dispatch_template.sh -x"; done
+# time for x in `cat /var/service/list`; do echo -n "$x  -  ";ssh $x 'echo "$HOSTNAME"'; echo -n "# Copying script: ";scp /var/service/dispatch_template.sh $x:/var/service/;ssh $x "sh /var/service/dispatch_template.sh -x"; done
 
 # TODO
 # fsuuid valid on current node.                                             - done
@@ -740,6 +827,9 @@ main "$@"
     # # `basename $0` -n		# Node replacement template.
     # # `basename $0` -o		# Reboot / Power On dispatch template.
     # # `basename $0` -p		# Power Supply replacement template.
+      #66679408  | BZ 32420  | S2   (turning over to next Atmos CS DAY shift)
+      #Issue: sndg01k01-is4-004  'Power Supply Redundancy' 'SENSOR_NON_RECOVERABLE'
+      #Action: Watch BZ for updates – most likely will need to dispatch out power unit.
     # # `basename $0` -r		# Reseat disk dispatch template.
     # # `basename $0` -w		# Private Switch replacement template.
 # BZ standardized templates.
