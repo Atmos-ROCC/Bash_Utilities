@@ -12,18 +12,21 @@ i#!/bin/bash
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.2.4j                                                    #
+  version=1.2.5a                                                     #
 #####################################################################
 
 ############################################################################################################
 #########################################   Variables/Parameters   #########################################
 ############################################################################################################
+  source_directory="${BASH_SOURCE%/*}"; [[ ! -d "$source_directory" ]] && source_directory="$PWD"
+  #. "$source_directory/incl.sh"
+  #. "$source_directory/main.sh"
   script_name=dispatch_template.sh 	
   cm_cfg="/etc/maui/cm_cfg.xml" 
   export RMG_MASTER=$(awk -F, '/localDb/ {print $(NF-1)}' $cm_cfg)										# top_view.py -r local | sed -n '4p' | sed 's/.*"\(.*\)"[^"]*$/\1/'
   export INITIAL_MASTER=$(awk -F"\"|," '/systemDb/ {print $(NF-2)}' $cm_cfg)				  # show_master.py |  awk '/System Master/ {print $NF}'
-  xdr_disabled_flag=0																					                      # Initialize xdr disable flag.
-  node_uuid=$(dmidecode | grep -i uuid | awk '{print $2}')                           # Find UUID of current node.
+  xdr_disabled_flag=0																					                        # Initialize xdr disable flag.
+  node_uuid=$(dmidecode | grep -i uuid | awk '{print $2}')                            # Find UUID of current node.
   cloudlet_name=$(awk -F",|\"" '/localDb/ {print $(NF-3)}' $cm_cfg)
   atmos_ver=$(awk -F\" '/version\" val/ {print $4}' /etc/maui/nodeconfig.xml)
   atmos_ver3=$(awk -F\" '/version\" val/ {print substr($4,1,3)}' /etc/maui/nodeconfig.xml)
@@ -32,6 +35,7 @@ i#!/bin/bash
   site_id=$(awk '/site/ {print ($3)}' /etc/maui/reporting/syr_reporting.conf)
   node_location="$(echo $HOSTNAME | cut -c 1-4)_address"
   tla_number=$(awk '/hardware/{if (length($NF)!=14) print "Not found";else print $NF}' /etc/maui/reporting/tla_reporting.conf)
+  customer_site_info_file="/usr/local/bin/customer_site_info"
   print_test_switch=0
   
 ############################################################################################################
@@ -250,30 +254,10 @@ append_dispatch_date() {			  # Appends dispatch date in show_offline_disks scrip
 }
 
 set_customer_contact_info() {		# Set Customer contact info/location.
-  ### Beatle addresses:
-  alln_address="AT&T Solutions_Allen_IDC_Apple_SMS Managed Utility\n900 VENTURE DR\nALLEN, TX 75013"															                            # Allen
-  amst_address="AT&T SOLUTIONS C/O REMOTE MANAGED SERVICES (RMS)\nGLOBAL SWITCH AMSTERDAM SLOTERVAAR\nJOHAN HUIZINGALAAN 759\nAMSTERDAM, NL 1066 VH"			    # Amsterdam
-  DFW0_address="AT&T Internet Data Center\n11830 WEBB CHAPEL RD\nC/O Site ID 21611\nDALLAS, TX 75234"											                                    # Dallas - Fort Worth
-  dfw1_address="AT&T Internet Data Center\n11830 WEBB CHAPEL RD\nC/O Site ID 21611\nDALLAS, TX 75234"												                                  # Dallas - Fort Worth
-  hnkg_address="AT&T INFRASTRUCTURE STAAS:22061.HNK2\n28 PAK TIN PAR STREET\n10/F I TECH TOWER SITE ID[22061]\nTSUEN WAN\nNEW TERRITORIES\nHong Kong, China"	# Hong Kong - Phase 2
-  LIS0_address="AT&T Internet Data Center\n4513 WESTERN AVE\nC/O Site ID 21609\nLISLE, IL  60532"																                              # Lisle
-  lis1_address="AT&T Internet Data Center\n4513 WESTERN AVE\nC/O Site ID 21609\nLISLE, IL  60532"																                              # Lisle
-  lond_address="AT&T SOLUTIONS C/O AT&T ENT. HOSTING LONDON UK\nUNIT 21 SENTRUM IV FACILITY\nGOLDSWORTH PARK TRADING ESTATE\nWOKING  SURREY  GB  GU21  3BA"	  # London
-  rdcy_address="AT&T CORP\n3175 SPRING ST\nC/O AT&T Infrastructure StaaS: 22088.RWC\nREDWOOD CITY, CA 94063"  												                        # Redwood City - Phase 2.2
-  RWC0_address="AT&T DATA CENTER\nC/O SITE ID 21610\n3175 SPRING ST\nREDWOOD CITY, CA 94063"																	                                # Redwood City - P1
-  rwc1_address="AT&T DATA CENTER\nC/O SITE ID 21610\n3175 SPRING ST\nREDWOOD CITY, CA 94063"																	                                # Redwood City - P1
-  stls_address="AT&T CORP\n801 CHESTNUT ST\nBEATLE PROJECT\nSAINT LOUIS, MO 63101"																			                                      # Saint Louis
-  sndg_address="AT&T \n7337 TRADE ST\nRM 2181\nSAN DIEGO, CA  92121"																							                                            # San Diego
-  SEC0_address="AT&T Internet Data Center\nC/O SITE ID 21614\n15 ENTERPRISE AVE N\nSECAUCUS, NJ  07094"														                            # Secaucus
-  sec1_address="AT&T Internet Data Center\nC/O SITE ID 21614\n15 ENTERPRISE AVE N\nSECAUCUS, NJ  07094"														                            # Secaucus
-  SYD0_address="AT&T - Please update location info in script."
-  syd1_address="AT&T - Please update location info in script."
-  tkyo_address="AT&T Japan K.K.\n2-3-10 FUKUZUMI\nASAHI COMPUTER BLDG 2ND FLOOR\nKOTO-KU\nTOKYO, JAPAN   135-0032"									                          # Tokyo - Phase 2
-  TYO0_address="AT&T Solutions_Tokyo IDC_Apple_SMS Managed Utility\n6-5 KITA SHINAGAWA\nC/O AT&T ENTERPRISE HOSTING SERVICES\nTOKYO, JAPAN  141-0001"			    # Tokyo - Phase 1
-  ########## CSTaaS addresses:
-  lon0_address="AT&T SOLUTIONS_LONDON IDC_APPLE_SMS MANAGED UTILITY\nGOLDSWORTH PARK TRADING ESTATE\nKESTREL WAY\nWOKING  SURREY    GB     GU21 3BA"			    # London ?
-  dfw0_address="AT&T Solutions_Dallas IDC_SMS Managed Utility - STaaS\n11830 WEBB CHAPEL RD\nSTE 200\nDALLAS, TX  75234"										                  # dfw cstaas
-  iad0_address="AT&T Solutions_Ashburn IDC_SMS Managed Utility - STaaS\n21571 BEAUMEADE CIR\nASHBURN, VA  20147"												                      # iad cstaas
+  #source_directory="${BASH_SOURCE%/*}"; [[ ! -d "$source_directory" ]] && source_directory="$PWD"
+  #. "$source_directory/incl.sh"
+  #. "$source_directory/main.sh"
+  [[ -f "${customer_site_info_file}" ]] && . "${customer_site_info_file}"
   
   eval is_att_rocc_system=\$$node_location
   if [[ ${#is_att_rocc_system} -gt 0 && "${is_att_rocc_system}" =~ "AT&T"[\ ]* ]] ; then
@@ -440,10 +424,19 @@ distribute_script() {				    # Distribute script across all nodes, and sets perm
   echo -en "\n# Distributing script across all nodes.. "
   copy_script=$(mauiscp ${full_path} ${full_path} | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
   [ $copy_script -eq 0 ] && echo -e "${light_green}Done!${clear_color} ($this_script copied to all nodes)" || { fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
+  if [[ -e "${customer_site_info_file}" ]]; then
+    echo -en "# Detected customer site info file. Distributing file across all nodes.. "
+    copy_cust_info_file=$(mauiscp ${customer_site_info_file} ${customer_site_info_file} | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
+    [ $copy_cust_info_file -eq 0 ] && echo -e "${light_green}Done!${clear_color} (File copied to all nodes)" || { fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
+  fi
   echo -en "# Setting script permissions across all nodes.. "
   set_permissions=$(mauirexec "chmod +x ${full_path}" | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
-  [ $set_permissions -eq 0 ] && echo -e "${light_green}Permissions set!${clear_color}\n\n" || { fail_flag=1; fail_text="Failed to set permissions across all nodes"; }
+  [ $set_permissions -eq 0 ] && echo -e "${light_green}Permissions set!${clear_color}" || { fail_flag=1; fail_text="Failed to set permissions across all nodes"; }
+  echo -en "# Creating symlink in /var/service/ "
+  [[ -e /var/service/$this_script ]] && /bin/rm -f /var/service/$this_script
+  ln -s ${full_path} /var/service/${this_script} && echo -e "${light_green}  ..Done!${clear_color}" || echo -e "${red}  ..Failed.${clear_color}"
   [[ ${fail_flag} -eq 1 ]] && { full_path=$(get_abs_path $0); mauirexec -e "${full_path} -v" | awk '/Output/{n=$NF;m++}; !/Output|^$|Runnin|is 0|dispatch/{l++;print n": Error "}';cleanup "${fail_text}" 21; }
+  echo -e "\n\n"
   exit 0
 }
 
@@ -702,6 +695,238 @@ show_system_info(){
   dmidecode | grep -i 'system information' -A4 && xdoctor -v | xargs -I{} echo 'xDoctor Version {}' && (ls -l /var/service/AET/workdir || ls -l /var/support/AET/workdir ) 2>/dev/null | awk '{print $11}'&& xdoctor -y | grep 'System Master:' | awk '{print $3,$4,$5}';echo -e "-------\n\n"
 }
 
+prep_lcc_templates() {      # Prepares input for use in print_int_disk_template function.
+
+      # Parts
+      # · 303-171-000B  – VOYAGER 6G SAS LCC ASSY - G3-DENSE Model ONLY
+      # · 303-171-002C-00 - VOYAGER 6G SAS LCC ASSY W/ 8K EPROM - G3-FLEX Model ONLY
+      # note: The above LCCs are not compatible and cannot be interchanged.
+      # The following steps can be used to determine the defective LCC part number required for replacement.
+      # 1. Establish a secure shell (SSH) session to any node within the Install Segment (IS) of the failing LCC.
+      # 2. Type the following commands to assist in determining which LCC part number is being used in DAEs within the IS. If the Ext Disks = 30 or less, than order 303-171-002C-00, else order 303-171-000B .
+        # # cs_hal list enclosures
+        # Enclosure(s):
+        # SCSI Device Ext Disks
+        # ----------- ---------
+        # /dev/sg2     30   < 30 disks = 303-172-002D-001
+        #  
+        # total: 1
+      # note: G3-FLEX is supported on Atmos software release 2.1.4.0 and above, configured with 30 disks in each DAE.
+
+  case "${hardware_gen}:${atmos_ver3}" in   						# hardware_gen:atmos_ver3
+    1:*)  	                        # Gen 1 hardware
+      if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
+        echo -en "\n${light_green}# Gen1: Enter internal disk's device slot/ID ( 0:0:0 / 0:0:1 ) [0 or 1 is fine]: "
+        read -t 120 -n 5 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
+        echo -e "\n${clear_color}"
+      fi
+      [[ ${internal_disk_dev_path} == "0" ]] && internal_disk_dev_path="0:0:0"
+      [[ ${internal_disk_dev_path} == "1" ]] && internal_disk_dev_path="0:0:1"
+      [[ ${internal_disk_dev_path} =~ "0:0:"[01] ]] || cleanup "Internal disk slot#/ID# not recognized." 131
+      part_num='105-000-160'				  
+      int_disk_description='250GB 7.2K RPM 3.5IN DELL SATA DRV/SLED'
+      [[ ${internal_disk_dev_path} == "0:0:0" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" && int_drive_loc_note="Drive ID 0:0:0 is the left drive"
+      [[ ${internal_disk_dev_path} == "0:0:1" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" && int_drive_loc_note="Drive ID 0:0:1 is the right drive"
+      omreport storage vdisk controller=0|grep "State"; omreport system alertlog | grep -B1 -A4 ": 2095"
+      omreport system alertlog | grep -A5 ": Critical"; grep -B1 -A3 'Sense key: 3' /var/log/messages
+      print_int_variable_line1="Dev ID/Slot:\t${internal_disk_dev_path}"
+      print_int_variable_line2="Note: Each drive’s slot is labeled 0 or 1 at the node. ${int_drive_loc_note}."
+      # Gen 1 (Dell 1950 III) Server Platform internal 3.5” SATA Drive: 105-000-160 (250GB)   "250GB 7.2K RPM 3.5IN DELL SATA DRV/SLED"
+      # Gen 1 (Dell 1950 III) Server Platform internal 3.5” SATA Drive: 105-000-153 (500GB)   "500GB 7.2K RPM 3.5IN DELL 10K SATA SLED"
+      # Note: 105-000-160 and 105-000-153 are compatible. Refer to Product Compatibility Database for latest compatibility information. (https://alliance.emc.com/Pages/PcdHome.aspx)
+      ;;		
+    2:*)  	                        # Gen 2 Hardware 
+      if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
+        echo -en "\n${light_green}# Gen2: Enter internal disk's device slot/ID ( 0:0:0 / 0:0:1 ) [0 or 1 is fine]: "
+        read -t 120 -n 5 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
+        echo -e "\n${clear_color}"
+      fi
+      [[ ${internal_disk_dev_path} == "0" ]] && internal_disk_dev_path="0:0:0"
+      [[ ${internal_disk_dev_path} == "1" ]] && internal_disk_dev_path="0:0:1"
+      [[ ${internal_disk_dev_path} =~ "0:0:"[01] ]] || cleanup "Internal disk slot#/ID# not recognized." 131
+      part_num='105-000-179'
+      int_disk_description='DELL 250GB 7.2KRPM SATA2.5IN DK 11G SLED'
+      [[ ${internal_disk_dev_path} == "0:0:0" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" && int_drive_loc_note="Drive ID 0:0:0 is the top drive"
+      [[ ${internal_disk_dev_path} == "0:0:1" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" && int_drive_loc_note="Drive ID 0:0:1 is the bottom drive"
+      omreport storage vdisk controller=0|grep "State"; omreport system alertlog | grep -B1 -A4 ": 2095"
+      omreport system alertlog | grep -A5 ": Critical"; grep -B1 -A3 'Sense key: 3' /var/log/messages
+      print_int_variable_line1="Dev ID/Slot:\t${internal_disk_dev_path}"
+      print_int_variable_line2="Note: Each drive’s slot is labeled 0 or 1 at the node. ${int_drive_loc_note}."
+      # Gen 2 (Dell R610) Server Platform internal 2.5” SATA Drive: 105-000-179   "DELL 250GB 7.2KRPM SATA2.5IN DK 11G SLED"
+      ;;
+    3:*)                            # Gen 3 Hardware
+      if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
+        echo -en "\n${light_green}# Enter internal disk's device path (sda/sdb): "
+        read -t 120 -n 3 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
+        echo -e "\n${clear_color}"
+      fi
+      int_dev_path="/dev/${internal_disk_dev_path}"
+      [[ ${internal_disk_dev_path} == "a" ]] && internal_disk_dev_path="sda"
+      [[ ${internal_disk_dev_path} == "b" ]] && internal_disk_dev_path="sdb"
+      [[ ${internal_disk_dev_path} =~ "sd"[ab] ]] || cleanup "Internal disk device path not recognized." 131
+      part_num='105-000-316-00'
+      int_disk_description='300GB 2.5" 10K RPM SAS 512bps DDA ATMOS'
+      internal_uuid=$(mdadm -D /dev/md126 | awk '/UUID/{print $3}')
+      [[ ${internal_disk_dev_path} == "sda" ]] && disk_sn_uuid=$(smartctl -i /dev/sg0 | awk '/Serial number/{print $3}')
+      [[ ${internal_disk_dev_path} == "sdb" ]] && disk_sn_uuid=$(smartctl -i /dev/sg1 | awk '/Serial number/{print $3}')
+      print_int_variable_line1="Raid UUID:\t${internal_uuid}"
+      print_int_variable_line2="Dev Path:\t${int_dev_path}"
+      echo -e "\n${light_cyan}# Checking utilization of disks, please wait 30 seconds: (iostat -xk 10 3 /dev/sda /dev/sdb) ${clear_color}\n" && iostat -xk 10 3 /dev/sda /dev/sdb
+      echo -e "\n${light_cyan}# Checking Raid status: (cat /proc/mdstat) ${clear_color}\n" && cat /proc/mdstat
+      echo -e "\n${light_cyan}# Checking Raid status: (mdadm -D /dev/md126) ${clear_color}\n" && mdadm -D /dev/md126
+      echo -e "\n${light_cyan}# Checking Disk status: (mdadm -E ${int_dev_path}) ${clear_color}\n" && mdadm -E ${int_dev_path}
+      echo -e "\n${light_cyan}# Checking Disk health: (smartctl -x ${int_dev_path}) ${clear_color}\n" && smartctl -x ${int_dev_path}
+      echo -e "\n${light_cyan}# Checking Disk health: (sg_inq ${int_dev_path}) ${clear_color}\n" && sg_inq ${int_dev_path}
+      ;;
+    *) cleanup "Hardware Gen / Internal disk type detection failed." 130
+      ;;
+    esac
+
+  set_customer_contact_info
+  disk_type='Internal'
+  replace_method=" - FRU Replacement Procedure"
+  [[ -a /var/service/fsuuid_SRs/${internal_uuid}.txt  ]]  && { fsuuid_var=${internal_uuid};validate_fsuuid_text_file; }
+  [[ -a /var/service/fsuuid_SRs/${internal_serial}.txt  ]]  && { fsuuid_var=${internal_serial};validate_fsuuid_text_file; }
+  # psql -U postgres -d rmg.db -h $RMG_MASTER -c "select d.devpath,d.slot,d.status,d.connected,d.slot_replaced,d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='$internal_uuid';" | egrep -v '^$|row'
+  # psql -U postgres -d rmg.db -h $RMG_MASTER -tx -c "select * from disks d where d.devpath='${int_dev_path}';"
+  
+  echo -en "\n${light_green}# Continue printing dispatch template? (y/Y) [Default = y]: ${clear_color}"
+  read -t 120 -n 1 print_internal_disk_temp_flag || cleanup "Timeout: No internal disk given." 171
+  [[ ${print_internal_disk_temp_flag} =~ [yY] ]] && print_int_disk_template 
+  [[ -z ${print_internal_disk_temp_flag} ]] && print_int_disk_template
+  return 0
+}
+
+print_lcc_replace_template() {     # Prints internal disk template to screen.
+      # CST please create a Task for the field CE from the information below.
+
+      # Task Type: Corrective Maintenance
+      # SN of Box:  <TLA Serial #> 
+
+      # Reason for Dispatch: LCC Replacement
+      # Online (Y/N):  < Yes  or No>
+
+      # Node: <node name here>   
+      # System Serial #: <system serial # if available> 
+      # Part Number:  303-171-000B < All Beatle are this type - Check for others - See above>
+
+      # Location: 
+      # < Paste Address Here>
+
+      # CE Action Required:  contact ROCC and arrange for LCC replacement
+
+      # Replace LCC following Atmos Procedure Document - 
+      # G3 Series - DAE7S Link Control Card (LCC)
+
+      # Follow all steps in document.
+
+      # Contact Name: rocc@roccops.surr
+      # Contact Number and Time: 877-362-0253   7x24x356
+      # Priority (NBD / ASAP): ASAP
+
+      # Next Action: dispatch CE onsite
+
+      # Please Dispatch the CE to contact ROCC and complete the above tasks in their entirety.
+
+
+
+
+
+
+      # Disp Notification - Generic
+
+      # CST please create a Task for the field CE from the information below.
+
+      # Task Type: Corrective Maintenance
+      # SN of Box:   APM00133861725
+
+      # Reason for Dispatch: LCC Replacement
+      # Online (Y/N): Yes
+
+      # Node:  lond01a01-is5-008
+      # System Serial #:  FC6AT133900072
+
+      # Part Number:  303-171-000B 
+
+      # Location: 
+      # AT&T SOLUTIONS C/O AT&T ENTERPRISE HOSTING LONDON UK
+      # UNIT 21 SENTRUM IV FACILITY
+      # GOLDSWORTH PARK TRADING ESTATE
+      # WOKING  SURREY    GB     GU21 3BA
+
+      # CE Action Required:  contact ROCC and arrange for possible LCC replacement
+
+
+      # Follow the steps in the Replace LCC following Atmos Procedure Document -  G3 Series - DAE7S Link Control Card (LCC
+
+      # - up to step # 19 on page 17.  
+      # After step 18, 
+
+      # Power off DAE 
+
+      # Then proceed following steps up to # 24 on page 19.   
+      # Reseat all LCC units.
+
+      # Power on DAE - wait at least 5 -10  minutes for drives to spin up.
+
+      # Check for any amber fault light - If an amber fault light on DAE is found, proceed to replace the faulty LCC.
+
+      # If no amber fault light is found - power back on node - and monitor boot process. 
+
+      # Follow document steps # 27 - # 37  
+
+      # When node is back up - ssh to node and check to see if all 48 SS disks are now seen using this command - 
+
+      # # df -h | grep mauiss | wc -l
+
+      # If count is not = 48, then restart LCC replacement - looking for amber fault light - use the following  document :
+
+      # Replace LCC following Atmos Procedure Document - 
+      # G3 Series - DAE7S Link Control Card (LCC)
+
+      # Follow all steps in document.
+
+      # Contact Name: rocc@roccops.com
+      # Contact Number and Time: 877-362-0253   7x24x356
+      # Priority (NBD / ASAP): ASAP
+
+      # Next Action: dispatch CE onsite
+
+
+      # Please Dispatch the CE to contact ROCC and complete the above tasks in their entirety.
+  printf '%.0s=' {1..80}
+  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: Internal* Disk Replacement\n*Note:\tINTERNAL DISK!!!\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDescription:\t${int_disk_description}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\n${print_int_variable_line1}\n${print_int_variable_line2}"
+  echo -e "\nCE Action Required:  On Site"
+  printf '%.0s-' {1..30}
+  echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} *Internal* Disk for Atmos ${atmos_ver5}${replace_method}.\n3- Verify correct disk has been replaced by comparing disk serial# shown above, with SN shown on disk."
+  if [ $node_location != "lond" ] || [ $node_location != "amst" ]; then echo -e "*Note: If any assistance is needed, contact your FSS."; fi
+  echo -e "\nIssue Description: Failed *internal* disk is ready for replacement."
+  printf '%.0s-' {1..58}
+  echo -e "\n${customer_contact_info}${customer_contact_location}"
+  echo -e "Next Action:\tDispatch CE onsite\nPlease notify the CE to contact ${customer_name} prior to going on site and to complete the above tasks in their entirety.\n ${clear_color}"
+  printf '%.0s=' {1..80}
+  echo -e ""
+  
+  return 0
+}
+
+print_lcc_reseat_template() {     # Prints internal disk template to screen.
+  printf '%.0s=' {1..80}
+  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: Internal* Disk Replacement\n*Note:\tINTERNAL DISK!!!\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDescription:\t${int_disk_description}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\n${print_int_variable_line1}\n${print_int_variable_line2}"
+  echo -e "\nCE Action Required:  On Site"
+  printf '%.0s-' {1..30}
+  echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} *Internal* Disk for Atmos ${atmos_ver5}${replace_method}.\n3- Verify correct disk has been replaced by comparing disk serial# shown above, with SN shown on disk."
+  if [ $node_location != "lond" ] || [ $node_location != "amst" ]; then echo -e "*Note: If any assistance is needed, contact your FSS."; fi
+  echo -e "\nIssue Description: Failed *internal* disk is ready for replacement."
+  printf '%.0s-' {1..58}
+  echo -e "\n${customer_contact_info}${customer_contact_location}"
+  echo -e "Next Action:\tDispatch CE onsite\nPlease notify the CE to contact ${customer_name} prior to going on site and to complete the above tasks in their entirety.\n ${clear_color}"
+  printf '%.0s=' {1..80}
+  echo -e ""
+  
+  return 0
+}
+
 ###########################################   Start main code..  ###########################################
 ## Initialize color variables
 ############################################################################################################
@@ -751,7 +976,7 @@ do
     k)  get_fsuuid
         prepare_disk_template
         ;;
-    l)  cleanup "Not supported yet, will print LCC dispatch template." 99
+    l)  prep_lcc_templates
         ;;			
     m)  get_fsuuid 0
         prepare_disk_template
@@ -816,7 +1041,7 @@ main "$@"
 # Gen2: iad01-is05-006
 # Gen3: lis1d01-is5-001
 # amst a,  rwc a, tkyo a, tyo1/syd1
-# time for x in `cat /var/service/list`; do echo -n "$x  -  ";ssh $x 'echo "$HOSTNAME"'; echo -n "# Copying script: ";scp /var/service/dispatch_template.sh $x:/var/service/;ssh $x "sh /var/service/dispatch_template.sh -x"; done
+# script_loc="/usr/local/bin";time for x in `cat /var/service/list`; do echo -n "$x  -  ";ssh $x 'echo "$HOSTNAME"'; echo -n "# Copying script: ";scp $script_loc/dispatch_template.sh $x:$script_loc/ ; [[ -e /usr/local/bin/customer_site_info ]] && scp /usr/local/bin/customer_site_info $x:/usr/local/bin/;ssh $x "sh $script_loc/dispatch_template.sh -x"; done
 
 # TODO
 # fsuuid valid on current node.                                             - done
