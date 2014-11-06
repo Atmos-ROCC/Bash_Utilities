@@ -12,7 +12,7 @@ i#!/bin/bash
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.2.5b                                                    #
+  version=1.2.5d                                                    #
 #####################################################################
 
 ############################################################################################################
@@ -426,15 +426,15 @@ distribute_script() {				    # Distribute script across all nodes, and sets perm
   [[ "$script_name" == "$this_script" ]] || cleanup "Please rename script to $script_name and try again." 20
   echo -en "\n# Distributing script across all nodes.. "
   copy_script=$(mauiscp ${full_path} ${full_path} | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
-  [ $copy_script -eq 0 ] && echo -e "${light_green}Done!${clear_color} ($this_script copied to all nodes)" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
+  [[ $copy_script -eq 0 ]] && echo -e "${light_green}Done!${clear_color} ($this_script copied to all nodes)" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
   if [[ -e "${customer_site_info_file}" ]]; then
     echo -en "# Detected customer site info file. Distributing file across all nodes.. "
     copy_cust_info_file=$(mauiscp ${customer_site_info_file} ${customer_site_info_file} | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
-    [ $copy_cust_info_file -eq 0 ] && echo -e "${light_green}Done!${clear_color} (File copied to all nodes)" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
+    [[ $copy_cust_info_file -eq 0 ]] && echo -e "${light_green}Done!${clear_color} (File copied to all nodes)" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
   fi
   echo -en "# Setting script permissions across all nodes.. "
   set_permissions=$(mauirexec "chmod +x ${full_path}" | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
-  [ $set_permissions -eq 0 ] && echo -e "${light_green}Permissions set!${clear_color}" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to set permissions across all nodes"; }
+  [[ $set_permissions -eq 0 ]] && echo -e "${light_green}Permissions set!${clear_color}" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to set permissions across all nodes"; }
   echo -en "# Creating symlink in /var/service/ "
   [[ -e /var/service/$this_script ]] && /bin/rm -f /var/service/$this_script
   ln -s ${full_path} /var/service/${this_script} && echo -e "${light_green}  ..Done!${clear_color}" || echo -e "${red}  ..Failed.${clear_color}"
@@ -951,10 +951,10 @@ trap control_c SIGINT
 [[ $1 == "-\$" || $1 == "?" ]] && echo -e "\n${red}Invalid option, see usage:${clear_color}" && display_usage
 
 ## Check for invalid options:
-if ( ! getopts ":bcdefiklmnoprsuvVwxyz" options ); then echo -e "\n${red}Invalid options, see usage:${clear_color}" && display_usage; fi
+if ( ! getopts ":bcdefhiklmnoprsuvVwxyz" options ); then echo -e "\n${red}Invalid options, see usage:${clear_color}" && display_usage; fi
 
 ## Parse the options:
-while getopts ":bcdefiklmnoprsuvVwxyz" options
+while getopts ":bcdefhiklmnoprsuvVwxyz" options
 do
     case $options in
     b)  mark_disk_replaceable
@@ -974,6 +974,8 @@ do
         ;;
     f)  cooling_fan_num="$2"
         prep_dae_fan_template
+        ;;
+    h)  display_usage
         ;;
     i)  internal_disk_dev_path="$2"
         prep_int_disk_template
