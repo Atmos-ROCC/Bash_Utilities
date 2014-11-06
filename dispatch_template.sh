@@ -12,7 +12,7 @@ i#!/bin/bash
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.2.5s                                                    #
+  version=1.2.5b                                                    #
 #####################################################################
 
 ############################################################################################################
@@ -245,8 +245,11 @@ append_dispatch_date() {			  # Appends dispatch date in show_offline_disks scrip
     read -p "# Would you like to proceed anyways and update the dispatch date? (y/Y) " -s -n 1 -t 120 redispatch_flag
     [[ ${redispatch_flag} =~ [yY] ]] || cleanup "" 192
     sed -i "s/-Dispatched_[0-1][0-9]-[0-3][0-9]-[0-9][0-9]_/-Dispatched_$(date +%m-%d-%y)_/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+  elif
+    [[ ! "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*#session.* ]]; then
+    sed -i "1s/\(,[0-9]\{8\}\)\($\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
   else 
-    sed -i "1s/\(,[0-9]*\)\([#_]\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+    sed -i "1s/\(,[0-9]\{8\}\)\([#_]\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
   fi
   echo -e "\n${light_green}# Dispatch date has been appended to show_offline_disks text file: ${clear_color}"
   awk -F"," 'NR==1 {print $0}' /var/service/fsuuid_SRs/${fsuuid_var}.txt
@@ -423,15 +426,15 @@ distribute_script() {				    # Distribute script across all nodes, and sets perm
   [[ "$script_name" == "$this_script" ]] || cleanup "Please rename script to $script_name and try again." 20
   echo -en "\n# Distributing script across all nodes.. "
   copy_script=$(mauiscp ${full_path} ${full_path} | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
-  [ $copy_script -eq 0 ] && echo -e "${light_green}Done!${clear_color} ($this_script copied to all nodes)" || { fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
+  [ $copy_script -eq 0 ] && echo -e "${light_green}Done!${clear_color} ($this_script copied to all nodes)" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
   if [[ -e "${customer_site_info_file}" ]]; then
     echo -en "# Detected customer site info file. Distributing file across all nodes.. "
     copy_cust_info_file=$(mauiscp ${customer_site_info_file} ${customer_site_info_file} | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
-    [ $copy_cust_info_file -eq 0 ] && echo -e "${light_green}Done!${clear_color} (File copied to all nodes)" || { fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
+    [ $copy_cust_info_file -eq 0 ] && echo -e "${light_green}Done!${clear_color} (File copied to all nodes)" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
   fi
   echo -en "# Setting script permissions across all nodes.. "
   set_permissions=$(mauirexec "chmod +x ${full_path}" | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
-  [ $set_permissions -eq 0 ] && echo -e "${light_green}Permissions set!${clear_color}" || { fail_flag=1; fail_text="Failed to set permissions across all nodes"; }
+  [ $set_permissions -eq 0 ] && echo -e "${light_green}Permissions set!${clear_color}" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to set permissions across all nodes"; }
   echo -en "# Creating symlink in /var/service/ "
   [[ -e /var/service/$this_script ]] && /bin/rm -f /var/service/$this_script
   ln -s ${full_path} /var/service/${this_script} && echo -e "${light_green}  ..Done!${clear_color}" || echo -e "${red}  ..Failed.${clear_color}"
@@ -682,6 +685,7 @@ mark_disk_replaceable(){
   else \
     echo -e "\n## No updates performed. " ;\
   fi
+  return 0
 }
 
 show_system_info(){
@@ -798,6 +802,7 @@ prep_lcc_templates() {      # Prepares input for use in print_int_disk_template 
 }
 
 print_lcc_replace_template() {     # Prints internal disk template to screen.
+  cleanup "Function currently being developed." 1
       # CST please create a Task for the field CE from the information below.
 
       # Task Type: Corrective Maintenance
@@ -1045,3 +1050,13 @@ main "$@"
     # # `basename $0` -r		# Reseat disk dispatch template.                - pending
     # # `basename $0` -w		# Private Switch replacement template.          - pending
 # BZ standardized templates.                                                - pending
+
+###########################################       Testing..       ##########################################
+############################################################################################################
+############################################################################################################
+# Testing: 
+# Gen1: dfw01-is01-003
+# Gen2: iad01-is05-006
+# Gen3: lis1d01-is5-001
+# amst a,  rwc a, tkyo a, tyo1/syd1
+# script_loc="/usr/local/bin";time for x in `cat /var/service/list`; do echo -n "$x  -  ";ssh $x 'echo "$HOSTNAME"'; echo -n "# Copying script: ";scp $script_loc/dispatch_template.sh $x:$script_loc/ ; [[ -e /usr/local/bin/customer_site_info ]] && scp /usr/local/bin/customer_site_info $x:/usr/local/bin/;ssh $x "sh $script_loc/dispatch_template.sh -x"; done
