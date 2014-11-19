@@ -1,4 +1,4 @@
-i#!/bin/bash
+#!/bin/bash
 #####################################################################
 # dispatch_template.sh  -- all Atmos versions                       #
 #                                                                   #
@@ -12,7 +12,7 @@ i#!/bin/bash
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.2.5d                                                    #
+  version=1.2.6b                                                    #
 #####################################################################
 
 ############################################################################################################
@@ -50,28 +50,29 @@ ${light_green}Overview:
     Send comments or suggestions to claiton.weeks@emc.com.
     
 ${light_cyan}Synopsis:
-  Disk templates:
+  Disk templates / functions:
     `basename $0` -d (<FSUUID>)	# Print MDS/SS/Mixed disk dispatch template, defaults to -k if no or invalid FSUUID specified.
     `basename $0` -e (<FSUUID>)	# Combines -d and -s to print dispatch template, and then update SR#.
     `basename $0` -k		# Runs Kollin's show_offline_disks script first, then asks for fsuuid for dispatch.
-    `basename $0` -f		# Troubleshoot DAE fan issues / Print DAE fan replacement template.
-    `basename $0` -i		# Internal disk replacement template.
+    `basename $0` -b		# Set replacable bit to 1 in recoverytasks table.
+    `basename $0` -s		# Update SR# reported in Kollin's show_offline_disks script.
     
     Examples:
     `basename $0` -d        -or-        `basename $0` -d 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
     `basename $0` -e        -or-        `basename $0` -e 513b24f9-6af0-41c4-b1f4-d6d131bc50a2
     
-${lt_gray}  Other:
+${light_magenta}  Other templates:
+    `basename $0` -f		# Troubleshoot DAE fan issues / Print DAE fan replacement template.
+    `basename $0` -i		# Internal disk replacement template.
+    `basename $0` -l		# LCC replacement/reseat template.
+    
+${light_blue}  Administrative options:
     `basename $0` -h		# Display this usage info (help).
-    `basename $0` -b		# Set replacable bit to 1 in recoverytasks table.
-    `basename $0` -s		# Update SR# reported in Kollin's show_offline_disks script.
     `basename $0` -v		# Display script's current version.
     `basename $0` -x		# Distribute script to all nodes and set execute permissions.
-
-${dark_gray}  Planned additions:
+    
+${lt_gray}  Planned additions:
     `basename $0` -c		# Switch/eth0 connectivity template.
-    `basename $0` -l		# LCC replacement template.
-    `basename $0` -L		# LCC reseat template.
     `basename $0` -m		# DAE power cycle template.
     `basename $0` -n		# Node replacement template.
     `basename $0` -o		# Reboot / Power On dispatch template.
@@ -89,7 +90,7 @@ cleanup() {                     # Clean-up if script fails or finishes.
   unset sr_number
   unset new_sr_num
   (( $xdr_disabled_flag )) && echo -e "\n## Enabling Dialhomes (xDoctor/SYR) now.\n" && ssh $INITIAL_MASTER xdoctor --tool --exec=syr_maintenance --method=enable && xdr_disabled_flag=0
-  
+  [[ -e ${full_path}_tmp ]] && /bin/rm -f ${full_path}_tmp
   [[ "$1" != "" && "$2" -ne 0 ]] && echo -e "\n${red}#${clear_color}#${red}# ${1}${clear_color}\n" || echo -e "${clear_color}"
   exit $2
 }
@@ -131,7 +132,7 @@ print_disk_template() {         # Prints disk template to screen.
   echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nDispatch Reason: Disk Ready for Replacement\nDisk online (Y/N): no\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDisk Model:\t${model_num}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\nDAE Slot#:\t$disk_slot\nDisk Capacity:\t$disk_size TB\nDisk FSUUID:\t${fsuuid_var}"
   echo -e "\nCE Action Required:  On Site"
   printf '%.0s-' {1..30}
-  echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} DAE Disk for Atmos ${atmos_ver5} using ${replace_method}.\n3- Notify ROCC when disk replacement is completed."
+  echo -e "\n1- Contact ${customer_name} and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} DAE Disk for Atmos ${atmos_ver5} using ${replace_method}.\n3- Notify ROCC when disk replacement is completed."
   if [ $node_location != "lond" ] || [ $node_location != "amst" ]; then echo -e "*Note: If any assistance is needed, contact your FSS."; fi
   echo -e "\nIssue Description: Failed disk is ready for replacement."
   printf '%.0s-' {1..58}
@@ -227,7 +228,7 @@ update_sr_num() {					      # Change the SR number in show_offline_disks script 
     [[ "${update_sr_num_flag}" =~ [yY] ]] || return 2
     sed -i "1 s/,/,${new_sr_num}_origSR-/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
   else
-    echo -e "# ${red}You've selected to append a new SR to the show_offline_disks script.\nPlease ensure the new SR has been opened against Site ID: ${site_id} TLA: ${tla_number} Host: $HOSTNAME" 		               # Subject: ${New_Subject}"
+    echo -e "${red}# You've selected to append a new SR to the show_offline_disks script.\nPlease ensure the new SR has been opened against Site ID: ${site_id} TLA: ${tla_number} Host: $HOSTNAME" 		               # Subject: ${New_Subject}"
     validate_fsuuid_text_file
     [[ -z "$new_sr_num" ]] && read -p "# Enter new SR#: " -t 600 -n 8 new_sr_num || cleanup "Timeout: No SR# given." 181
     # validate sr number?      
@@ -269,7 +270,7 @@ set_customer_contact_info() {		# Set Customer contact info/location.
     cust_con_numb="877-362-0253"
     cust_con_time="(7x24x356)"
     customer_contact_location="\nSite Location: \n${is_att_rocc_system}\n"
-    customer_contact_info="Contact Name:\t${cust_con_name}\nContact Number:\t${cust_con_numb}\nContact Time:\t${cust_con_time}"
+    customer_contact_info="Contact Name:\t${cust_con_name}\nContact Num.:\t${cust_con_numb}\nContact Time:\t${cust_con_time}"
   else
     customer_name="customer"
     echo -e "${light_green}"
@@ -278,7 +279,7 @@ set_customer_contact_info() {		# Set Customer contact info/location.
     read -p "# Enter customer's available contact time: " -t 300 cust_con_time || cleanup "Timed out. Please get the information and try again." 113
     read -p "# Enter site's address: (Press \"Enter\" to skip..)" -t 300 cust_con_location || cleanup "Timed out. Please get the information and try again." 114
     echo -e "${clear_color}"
-    customer_contact_info="Contact Name:\t${cust_con_name}\nContact Number:\t${cust_con_numb}\nContact Time:\t${cust_con_time}"
+    customer_contact_info="Contact Name:\t${cust_con_name}\nContact Num.:\t${cust_con_numb}\nContact Time:\t${cust_con_time}"
     [[ ${#cust_con_location} -gt 1 ]] && customer_contact_location="\nLocation: ${cust_con_location}\n" || customer_contact_location=""
   fi
   return 0
@@ -435,9 +436,10 @@ distribute_script() {				    # Distribute script across all nodes, and sets perm
   echo -en "# Setting script permissions across all nodes.. "
   set_permissions=$(mauirexec "chmod +x ${full_path}" | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
   [[ $set_permissions -eq 0 ]] && echo -e "${light_green}Permissions set!${clear_color}" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to set permissions across all nodes"; }
-  echo -en "# Creating symlink in /var/service/ "
-  [[ -e /var/service/$this_script ]] && /bin/rm -f /var/service/$this_script
-  ln -s ${full_path} /var/service/${this_script} && echo -e "${light_green}  ..Done!${clear_color}" || echo -e "${red}  ..Failed.${clear_color}"
+  echo -en "# Creating symlink in /var/service/ directory.. "
+  mauirexec "[[ -e /var/service/$this_script ]] && /bin/rm -f /var/service/$this_script" | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}'
+  create_sym_link=$(mauirexec "ln -s ${full_path} /var/service/${this_script}"| awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
+  [[ $create_sym_link -eq 0 ]]  && echo -e "${light_green}Done!${clear_color}" || echo -e "${red} Failed.${clear_color}"
   [[ ${fail_flag} -eq 1 ]] && { full_path=$(get_abs_path $0); mauirexec -e "${full_path} -v" | awk '/Output/{n=$NF;m++}; !/Output|^$|Runnin|is 0|dispatch/{l++;print n": Error "}';cleanup "${fail_text}" 21; }
   echo -e "\n\n"
   exit 0
@@ -446,9 +448,9 @@ distribute_script() {				    # Distribute script across all nodes, and sets perm
 update_script(){                # Allows for updating script with passcode.
   full_path=$(get_abs_path $0); this_script=$(basename "$full_path"); this_script_dir=$(dirname "$full_path")
   [[ "$script_name" == "$this_script" ]] || cleanup "Please rename script to $script_name and try again." 20
-  read -p "Update script: please enter passcode: " -t 30 -s -n 4 update_passcode_ver || cleanup "Timeout: No passcode given." 253
-  echo
-  [[ ${update_passcode_ver} == "7777" ]] && vim ${full_path}_tmp && /bin/mv -f ${full_path}_tmp ${full_path} && chmod +x ${full_path} && cleanup "Updated successfully!" 0 || cleanup "update failed..." 254
+  read -p "Update script: please enter passcode: " -t 30 -s -n 4 update_passcode_ver || cleanup "Timeout: No passcode given." 252
+  echo "${full_path}";sleep  
+  [[ ${update_passcode_ver} == "7777" ]] && { vim ${full_path}_tmp && wait && [[ -n $(bash ${full_path}_tmp -v | awk -F":| " '/version/{print $5}') ]] && { /bin/mv -f ${full_path}_tmp ${full_path}; wait; chmod +x ${full_path}; echo -e "${light_green}# Updated successfully!";cleanup "Updated successfully!" 0; } || cleanup "update failed..." 253; } || cleanup "wrong code..." 254
   cleanup "Wrong passcode entered. Exiting." 255
 }
 
@@ -568,7 +570,7 @@ print_int_disk_template() {     # Prints internal disk template to screen.
   echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: Internal* Disk Replacement\n*Note:\tINTERNAL DISK!!!\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDescription:\t${int_disk_description}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\n${print_int_variable_line1}\n${print_int_variable_line2}"
   echo -e "\nCE Action Required:  On Site"
   printf '%.0s-' {1..30}
-  echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} *Internal* Disk for Atmos ${atmos_ver5}${replace_method}.\n3- Verify correct disk has been replaced by comparing disk serial# shown above, with SN shown on disk."
+  echo -e "\n1- Contact ${customer_name} and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} *Internal* Disk for Atmos ${atmos_ver5}${replace_method}.\n3- Verify correct disk has been replaced by comparing disk serial# shown above, with SN shown on disk."
   if [ $node_location != "lond" ] || [ $node_location != "amst" ]; then echo -e "*Note: If any assistance is needed, contact your FSS."; fi
   echo -e "\nIssue Description: Failed *internal* disk is ready for replacement."
   printf '%.0s-' {1..58}
@@ -652,7 +654,7 @@ print_dae_fan_template() {      # Prints dae fan template to screen.
   echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: DAE Fan Replacement\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nError details:\tCooling Fan ${cooling_fan_num}\nPart Number:\t${light_green}${part_num}${lt_gray} - ${fan_description}"
   echo -e "\nCE Action Required:  Please check cooling fan on DAE."
   printf '%.0s-' {1..48}
-  echo -e "\n1- Contact ROCC and arrange for DAE cooling fan replacement prior to going on site.\n2- Attention: Possible false alert, please verify the DAE fan modules are all showing green and are functioning.\n - Note: Fans are located across the front of the DAE and numbered 0-2, left to right.\n - Note: If all green lights / no further DAE issues seen, then close task and SR.\n - Note: If any fan is showing amber alert, follow procedure document for replacing GEN${hardware_gen} DAE cooling fan for Atmos ${atmos_ver5}.\n3- Select the Gen${hardware_gen} Series FRU component you wish to replace: G${hardware_gen} Series - DAE7S Fan Module\n    a- Remove the failed fan.\n    b- Reseat to see if it returns to green.\n    c- If it stays green - wait 5 minutes and if no change, close out the task and close the SR.\n    d- If it stays amber or changes to amber, then replace fan.\n    e- After replacing the failed fan - verify the DAE amber fault LED transitions to OFF, and the replacement fan has no amber fault LEDs.\nNote: Please add a note to the SR if the fan with the amber alert is different than the fan specified above.\nNote: If you cannot locate the DAE - \"no amber fault light found\" - log onto the node specified above and use the following commands:\n# cs_hal list enclosures\t(Should return /dev/sg2 or /dev/sg3)\n# cs_hal led /dev/sg2 blink\t(Will blink the DAE led)\n# cs_hal led /dev/sg2 off\t(Will turn off the blinking led on the DAE)"
+  echo -e "\n1- Contact ${customer_name} and arrange for DAE cooling fan replacement prior to going on site.\n2- Attention: Possible false alert, please verify the DAE fan modules are all showing green and are functioning.\n - Note: Fans are located across the front of the DAE and numbered 0-2, left to right.\n - Note: If all green lights / no further DAE issues seen, then close task and SR.\n - Note: If any fan is showing amber alert, follow procedure document for replacing GEN${hardware_gen} DAE cooling fan for Atmos ${atmos_ver5}.\n3- Select the Gen${hardware_gen} Series FRU component you wish to replace: G${hardware_gen} Series - DAE7S Fan Module\n    a- Remove the failed fan.\n    b- Reseat to see if it returns to green.\n    c- If it stays green - wait 5 minutes and if no change, close out the task and close the SR.\n    d- If it stays amber or changes to amber, then replace fan.\n    e- After replacing the failed fan - verify the DAE amber fault LED transitions to OFF, and the replacement fan has no amber fault LEDs.\nNote: Please add a note to the SR if the fan with the amber alert is different than the fan specified above.\nNote: If you cannot locate the DAE - \"no amber fault light found\" - log onto the node specified above and use the following commands:\n# cs_hal list enclosures\t(Should return /dev/sg2 or /dev/sg3)\n# cs_hal led /dev/sg2 blink\t(Will blink the DAE led)\n# cs_hal led /dev/sg2 off\t(Will turn off the blinking led on the DAE)"
   [[ $node_location != "lond" || $node_location != "amst" ]] && echo -e "*Note: If any assistance is needed, contact your FSS."
   echo -e "\nIssue Description: Failed DAE fan check / replace."
   printf '%.0s-' {1..58}
@@ -688,6 +690,21 @@ mark_disk_replaceable(){
   return 0
 }
 
+spinner_time() {
+i=1
+x=0
+seconds="$(echo "$1*7.172" | bc | sed 's/[.].*//')"
+sp="/-\|"
+echo -n ' '
+while [ $x -le $seconds ]
+do
+    x=$(( $x + 1 ))
+    printf "\b${sp:i++%${#sp}:1}"
+sleep .12
+done
+echo -en "\b"
+}
+
 show_system_info(){
   echo -e "\n# `basename $0` version: $version\n"
   maui_ver=$(cat /etc/maui/maui_version)
@@ -701,211 +718,106 @@ show_system_info(){
 
 prep_lcc_templates() {      # Prepares input for use in print_int_disk_template function.
 
-      # Parts
-      # · 303-171-000B  – VOYAGER 6G SAS LCC ASSY - G3-DENSE Model ONLY
-      # · 303-171-002C-00 - VOYAGER 6G SAS LCC ASSY W/ 8K EPROM - G3-FLEX Model ONLY
-      # note: The above LCCs are not compatible and cannot be interchanged.
-      # The following steps can be used to determine the defective LCC part number required for replacement.
-      # 1. Establish a secure shell (SSH) session to any node within the Install Segment (IS) of the failing LCC.
-      # 2. Type the following commands to assist in determining which LCC part number is being used in DAEs within the IS. If the Ext Disks = 30 or less, than order 303-171-002C-00, else order 303-171-000B .
         # # cs_hal list enclosures
-        # Enclosure(s):
-        # SCSI Device Ext Disks
-        # ----------- ---------
         # /dev/sg2     30   < 30 disks = 303-172-002D-001
-        #  
         # total: 1
-      # note: G3-FLEX is supported on Atmos software release 2.1.4.0 and above, configured with 30 disks in each DAE.
+  enclosure_size=$(cs_hal list enclosures | awk '/\/dev\/sg2/{print $2}')
+  mds_layout=$(mauisvcmgr -s mauimds -c getReplicaMode | awk -F= 'NR==1{print $2}')
+  
+  #Note:	In Atmos versions => 2.1.7.0 the command above will output a “Zoned” value. If this value is “No” the system is a G3 DENSE-480 or G3 FLEX-240.
+  #Note:	The cs_hal list enclosures command may not display as shown above if run on the node connected to the defective ICM or LCC. Run commands on an operational node 
+  #15 or 30 disks, Zoned=Yes = G3 FLEX-180/360
+  #total: 1                    Order 303-171-003D-00 or 303-171-002D-00
+  #                          Escalate to Atmos Global Technical Support for assistance. 
+  #                                                           DO NOT use this procedure for G3 FLEX-180/360 models.
+  # 3. [   ]	. Run the following command.  “test_eses -e 0 -C "eeprom 0 size set 0x2000"” to determine the LCC replacement part number to order. 
+  # Example:
+  # # test_eses -e 0 -C "eeprom 0 size set 0x2000"
+  # unknown_cmd       << 4K LCC Order 303-171-000B
+  # #
+  # # test_eses -e 0 -C "eeprom 0 size set 0x2000"
+  # #                << 8K LCC Order 303-171-002C-00 or 303-171-003C-00
+  # 4. [   ]	Once the G3 system model has been validated and the LCC replacement part has been determined and ordered, the LCC replacement engagement can be scheduled. If G3 FLEX-180/360 model escalate to L3 Engineering to schedule assistance.
+  # Caveats
+  # •	LCC in an Atmos G3 DENSE-480 and G3 FLEX-240 disk-array enclosure (Voyager DAE). 
+  # •	Do not remove a faulted LCC until you have the replacement part available.
+  # •	The LCCs 303-171-000B and 303-171-00xC-00 are not compatible and cannot be interchanged. See Atmos FRU matrix for details. 
+  # •	DO NOT use this procedures to replace a ICM or LCC on G3 FLEX-180/360 without Atmos L3 assistance. 
+  # 4. [   ]	Use the following commands to identify the DAE chassis that contains the defective LCC and the node the DAE chassis is configured to.
+  # Note:	The LCC failure should set the DAE chassis fault LED by default. Depending on the failure of the LCC, the identify command for the DAE chassis may not function.
+  # a.	Use the following command to identify the DAE chassis (blink yellow fault LED).  The SCSI Device “/dev/sdx” for the DAE enclosure with defective LCC 
+  # # cs_hal led /dev/sg2 blink
+  # cs_hal: setting LED state of enclosure /dev/sg2 from '0' to '1'
 
-  case "${hardware_gen}:${atmos_ver3}" in   						# hardware_gen:atmos_ver3
-    1:*)  	                        # Gen 1 hardware
-      if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
-        echo -en "\n${light_green}# Gen1: Enter internal disk's device slot/ID ( 0:0:0 / 0:0:1 ) [0 or 1 is fine]: "
-        read -t 120 -n 5 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
-        echo -e "\n${clear_color}"
-      fi
-      [[ ${internal_disk_dev_path} == "0" ]] && internal_disk_dev_path="0:0:0"
-      [[ ${internal_disk_dev_path} == "1" ]] && internal_disk_dev_path="0:0:1"
-      [[ ${internal_disk_dev_path} =~ "0:0:"[01] ]] || cleanup "Internal disk slot#/ID# not recognized." 131
-      part_num='105-000-160'				  
-      int_disk_description='250GB 7.2K RPM 3.5IN DELL SATA DRV/SLED'
-      [[ ${internal_disk_dev_path} == "0:0:0" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" && int_drive_loc_note="Drive ID 0:0:0 is the left drive"
-      [[ ${internal_disk_dev_path} == "0:0:1" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" && int_drive_loc_note="Drive ID 0:0:1 is the right drive"
-      omreport storage vdisk controller=0|grep "State"; omreport system alertlog | grep -B1 -A4 ": 2095"
-      omreport system alertlog | grep -A5 ": Critical"; grep -B1 -A3 'Sense key: 3' /var/log/messages
-      print_int_variable_line1="Dev ID/Slot:\t${internal_disk_dev_path}"
-      print_int_variable_line2="Note: Each drive’s slot is labeled 0 or 1 at the node. ${int_drive_loc_note}."
-      # Gen 1 (Dell 1950 III) Server Platform internal 3.5” SATA Drive: 105-000-160 (250GB)   "250GB 7.2K RPM 3.5IN DELL SATA DRV/SLED"
-      # Gen 1 (Dell 1950 III) Server Platform internal 3.5” SATA Drive: 105-000-153 (500GB)   "500GB 7.2K RPM 3.5IN DELL 10K SATA SLED"
-      # Note: 105-000-160 and 105-000-153 are compatible. Refer to Product Compatibility Database for latest compatibility information. (https://alliance.emc.com/Pages/PcdHome.aspx)
+  # b.	Use the following command to identify the host node (illuminate Blue ID LED), the DAE chassis is connected to.
+     # # cs_hal led node on
+     # cs_hal: setting LED state of node to 'ON'
+  
+  #Add current firmware version: # test_eses -R | grep LCC
+  case "${hardware_gen}:${enclosure_size}:${atmos_ver3}" in   						# hardware_gen:atmos_ver3
+    1:*)  	                                            # Gen 1 hardware
+      part_num='303-076-000D'				  
+      part_description='SAS / SATA LCC'
+      print_lcc_replace_var_line1=""
+      print_lcc_replace_var_line2=""
+      print_lcc_reseat_var_line1=""
+      print_lcc_reseat_var_line2=""
       ;;		
     2:*)  	                        # Gen 2 Hardware 
-      if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
-        echo -en "\n${light_green}# Gen2: Enter internal disk's device slot/ID ( 0:0:0 / 0:0:1 ) [0 or 1 is fine]: "
-        read -t 120 -n 5 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
-        echo -e "\n${clear_color}"
-      fi
-      [[ ${internal_disk_dev_path} == "0" ]] && internal_disk_dev_path="0:0:0"
-      [[ ${internal_disk_dev_path} == "1" ]] && internal_disk_dev_path="0:0:1"
-      [[ ${internal_disk_dev_path} =~ "0:0:"[01] ]] || cleanup "Internal disk slot#/ID# not recognized." 131
-      part_num='105-000-179'
-      int_disk_description='DELL 250GB 7.2KRPM SATA2.5IN DK 11G SLED'
-      [[ ${internal_disk_dev_path} == "0:0:0" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:0" && int_drive_loc_note="Drive ID 0:0:0 is the top drive"
-      [[ ${internal_disk_dev_path} == "0:0:1" ]] && disk_sn_uuid=$(omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" | awk '/Serial No./{print $4}') && omreport storage pdisk controller=0 | grep -A28 ": 0:0:1" && int_drive_loc_note="Drive ID 0:0:1 is the bottom drive"
-      omreport storage vdisk controller=0|grep "State"; omreport system alertlog | grep -B1 -A4 ": 2095"
-      omreport system alertlog | grep -A5 ": Critical"; grep -B1 -A3 'Sense key: 3' /var/log/messages
-      print_int_variable_line1="Dev ID/Slot:\t${internal_disk_dev_path}"
-      print_int_variable_line2="Note: Each drive’s slot is labeled 0 or 1 at the node. ${int_drive_loc_note}."
-      # Gen 2 (Dell R610) Server Platform internal 2.5” SATA Drive: 105-000-179   "DELL 250GB 7.2KRPM SATA2.5IN DK 11G SLED"
-      ;;
-    3:*)                            # Gen 3 Hardware
-      if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
-        echo -en "\n${light_green}# Enter internal disk's device path (sda/sdb): "
-        read -t 120 -n 3 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
-        echo -e "\n${clear_color}"
-      fi
-      int_dev_path="/dev/${internal_disk_dev_path}"
-      [[ ${internal_disk_dev_path} == "a" ]] && internal_disk_dev_path="sda"
-      [[ ${internal_disk_dev_path} == "b" ]] && internal_disk_dev_path="sdb"
-      [[ ${internal_disk_dev_path} =~ "sd"[ab] ]] || cleanup "Internal disk device path not recognized." 131
-      part_num='105-000-316-00'
-      int_disk_description='300GB 2.5" 10K RPM SAS 512bps DDA ATMOS'
-      internal_uuid=$(mdadm -D /dev/md126 | awk '/UUID/{print $3}')
-      [[ ${internal_disk_dev_path} == "sda" ]] && disk_sn_uuid=$(smartctl -i /dev/sg0 | awk '/Serial number/{print $3}')
-      [[ ${internal_disk_dev_path} == "sdb" ]] && disk_sn_uuid=$(smartctl -i /dev/sg1 | awk '/Serial number/{print $3}')
-      print_int_variable_line1="Raid UUID:\t${internal_uuid}"
-      print_int_variable_line2="Dev Path:\t${int_dev_path}"
-      echo -e "\n${light_cyan}# Checking utilization of disks, please wait 30 seconds: (iostat -xk 10 3 /dev/sda /dev/sdb) ${clear_color}\n" && iostat -xk 10 3 /dev/sda /dev/sdb
-      echo -e "\n${light_cyan}# Checking Raid status: (cat /proc/mdstat) ${clear_color}\n" && cat /proc/mdstat
-      echo -e "\n${light_cyan}# Checking Raid status: (mdadm -D /dev/md126) ${clear_color}\n" && mdadm -D /dev/md126
-      echo -e "\n${light_cyan}# Checking Disk status: (mdadm -E ${int_dev_path}) ${clear_color}\n" && mdadm -E ${int_dev_path}
-      echo -e "\n${light_cyan}# Checking Disk health: (smartctl -x ${int_dev_path}) ${clear_color}\n" && smartctl -x ${int_dev_path}
-      echo -e "\n${light_cyan}# Checking Disk health: (sg_inq ${int_dev_path}) ${clear_color}\n" && sg_inq ${int_dev_path}
-      ;;
-    *) cleanup "Hardware Gen / Internal disk type detection failed." 130
+      part_num='303-076-000D'				  
+      part_description='SAS / SATA LCC'
+      print_lcc_replace_var_line1=""
+      print_lcc_replace_var_line2=""
+      print_lcc_reseat_var_line1=""
+      print_lcc_reseat_var_line2=""
+      ;;	
+    3:30:*)                            # Gen 3 Hardware
+      part_num='303-171-002C-00'			 # 303-171-002C-00 - VOYAGER 6G SAS LCC ASSY W/ 8K EPROM - G3-FLEX Model ONLY      - Substitution:303-171-003C-00
+      part_description='VOYAGER 6G SAS LCC ASSY W/ 8K EPROM'          # note: G3-FLEX is supported on Atmos software release 2.1.4.0 and above, configured with 30 disks in each DAE.
+      print_lcc_replace_var_line1=""
+      print_lcc_replace_var_line2=""
+      print_lcc_reseat_var_line1=""
+      print_lcc_reseat_var_line2=""
+      ;;	
+    3:60:*)                            # Gen 3 Hardware
+      part_num='303-171-000B'		       # 303-171-000B  – VOYAGER 6G SAS LCC ASSY - G3-DENSE Model ONLY
+      part_description='VOYAGER 6G SAS LCC ASSY'
+      print_lcc_replace_var_line1=""
+      print_lcc_replace_var_line2=""
+      print_lcc_reseat_var_line1=""
+      print_lcc_reseat_var_line2=""
+      ;;	
+    *) cleanup "Hardware Gen / LCC type detection failed." 130
       ;;
     esac
 
   set_customer_contact_info
-  disk_type='Internal'
-  replace_method=" - FRU Replacement Procedure"
-  [[ -a /var/service/fsuuid_SRs/${internal_uuid}.txt  ]]  && { fsuuid_var=${internal_uuid};validate_fsuuid_text_file; }
-  [[ -a /var/service/fsuuid_SRs/${internal_serial}.txt  ]]  && { fsuuid_var=${internal_serial};validate_fsuuid_text_file; }
-  # psql -U postgres -d rmg.db -h $RMG_MASTER -c "select d.devpath,d.slot,d.status,d.connected,d.slot_replaced,d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='$internal_uuid';" | egrep -v '^$|row'
-  # psql -U postgres -d rmg.db -h $RMG_MASTER -tx -c "select * from disks d where d.devpath='${int_dev_path}';"
+  replace_method=""
   
-  echo -en "\n${light_green}# Continue printing dispatch template? (y/Y) [Default = y]: ${clear_color}"
-  read -t 120 -n 1 print_internal_disk_temp_flag || cleanup "Timeout: No internal disk given." 171
-  [[ ${print_internal_disk_temp_flag} =~ [yY] ]] && print_int_disk_template 
-  [[ -z ${print_internal_disk_temp_flag} ]] && print_int_disk_template
+  echo -en "\n${light_green}# LCC Menu: \n  1. LCC Reseat template\n  2. LCC Replacement template\n\n# Please make your selection ( 1 or 2 ): ${clear_color}"
+  read -t 120 -n 1 print_lcc_type_flag || cleanup "Timeout: No internal disk given." 171
+  [[ ${print_lcc_type_flag} =~ [12] ]] || cleanup "LCC - Invalid selection." 172
+  [[ ${print_lcc_type_flag} -eq 1 ]] && print_lcc_type="print_lcc_reseat_template" 
+  [[ ${print_lcc_type_flag} -eq 2 ]] && print_lcc_type="print_lcc_replace_template"
+    
+  echo -en "\n${light_green}# Continue printing dispatch template for LCC? (y/Y) [Default = y]: ${clear_color}"
+  read -t 120 -n 1 print_lcc_temp_flag || cleanup "Timeout: No internal disk given." 173
+  echo
+  [[ ${print_lcc_temp_flag} =~ [yY] ]] && $print_lcc_type 
+  [[ -z ${print_lcc_temp_flag} ]] && $print_lcc_type          # <-- may need eval, or exec.
   return 0
 }
 
 print_lcc_replace_template() {     # Prints internal disk template to screen.
-  cleanup "Function currently being developed." 1
-      # CST please create a Task for the field CE from the information below.
-
-      # Task Type: Corrective Maintenance
-      # SN of Box:  <TLA Serial #> 
-
-      # Reason for Dispatch: LCC Replacement
-      # Online (Y/N):  < Yes  or No>
-
-      # Node: <node name here>   
-      # System Serial #: <system serial # if available> 
-      # Part Number:  303-171-000B < All Beatle are this type - Check for others - See above>
-
-      # Location: 
-      # < Paste Address Here>
-
-      # CE Action Required:  contact ROCC and arrange for LCC replacement
-
-      # Replace LCC following Atmos Procedure Document - 
-      # G3 Series - DAE7S Link Control Card (LCC)
-
-      # Follow all steps in document.
-
-      # Contact Name: rocc@roccops.surr
-      # Contact Number and Time: 877-362-0253   7x24x356
-      # Priority (NBD / ASAP): ASAP
-
-      # Next Action: dispatch CE onsite
-
-      # Please Dispatch the CE to contact ROCC and complete the above tasks in their entirety.
-
-
-
-
-
-
-      # Disp Notification - Generic
-
-      # CST please create a Task for the field CE from the information below.
-
-      # Task Type: Corrective Maintenance
-      # SN of Box:   APM00133861725
-
-      # Reason for Dispatch: LCC Replacement
-      # Online (Y/N): Yes
-
-      # Node:  lond01a01-is5-008
-      # System Serial #:  FC6AT133900072
-
-      # Part Number:  303-171-000B 
-
-      # Location: 
-      # AT&T SOLUTIONS C/O AT&T ENTERPRISE HOSTING LONDON UK
-      # UNIT 21 SENTRUM IV FACILITY
-      # GOLDSWORTH PARK TRADING ESTATE
-      # WOKING  SURREY    GB     GU21 3BA
-
-      # CE Action Required:  contact ROCC and arrange for possible LCC replacement
-
-
-      # Follow the steps in the Replace LCC following Atmos Procedure Document -  G3 Series - DAE7S Link Control Card (LCC
-
-      # - up to step # 19 on page 17.  
-      # After step 18, 
-
-      # Power off DAE 
-
-      # Then proceed following steps up to # 24 on page 19.   
-      # Reseat all LCC units.
-
-      # Power on DAE - wait at least 5 -10  minutes for drives to spin up.
-
-      # Check for any amber fault light - If an amber fault light on DAE is found, proceed to replace the faulty LCC.
-
-      # If no amber fault light is found - power back on node - and monitor boot process. 
-
-      # Follow document steps # 27 - # 37  
-
-      # When node is back up - ssh to node and check to see if all 48 SS disks are now seen using this command - 
-
-      # # df -h | grep mauiss | wc -l
-
-      # If count is not = 48, then restart LCC replacement - looking for amber fault light - use the following  document :
-
-      # Replace LCC following Atmos Procedure Document - 
-      # G3 Series - DAE7S Link Control Card (LCC)
-
-      # Follow all steps in document.
-
-      # Contact Name: rocc@roccops.com
-      # Contact Number and Time: 877-362-0253   7x24x356
-      # Priority (NBD / ASAP): ASAP
-
-      # Next Action: dispatch CE onsite
-
-
-      # Please Dispatch the CE to contact ROCC and complete the above tasks in their entirety.
   printf '%.0s=' {1..80}
-  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: Internal* Disk Replacement\n*Note:\tINTERNAL DISK!!!\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDescription:\t${int_disk_description}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\n${print_int_variable_line1}\n${print_int_variable_line2}"
+  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: DAE LCC Replacement\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nHardware:\tGEN${hardware_gen}\nMDS Type:\t${mds_layout}-way\nPart Number:\t${light_green}${part_num}${lt_gray} \nDescription:\t${part_description}"
+  [[ -n ${print_lcc_replace_var_line1} ]] && echo -e "${print_lcc_replace_var_line1}"
+  [[ -n ${print_lcc_replace_var_line2} ]] && echo -e "${print_lcc_replace_var_line2}"
   echo -e "\nCE Action Required:  On Site"
   printf '%.0s-' {1..30}
-  echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} *Internal* Disk for Atmos ${atmos_ver5}${replace_method}.\n3- Verify correct disk has been replaced by comparing disk serial# shown above, with SN shown on disk."
-  if [ $node_location != "lond" ] || [ $node_location != "amst" ]; then echo -e "*Note: If any assistance is needed, contact your FSS."; fi
-  echo -e "\nIssue Description: Failed *internal* disk is ready for replacement."
+  echo -e "\n1- Contact ${customer_name} and arrange for LCC Replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} DAE LCC (Link Control Card) for Atmos ${atmos_ver5}${replace_method}."
+  [[ $node_location != "lond" || $node_location != "amst" ]] && echo -e "*Note: If any assistance is needed, contact your FSS."
+  echo -e "\nIssue Description: LCC needs replacement."
   printf '%.0s-' {1..58}
   echo -e "\n${customer_contact_info}${customer_contact_location}"
   echo -e "Next Action:\tDispatch CE onsite\nPlease notify the CE to contact ${customer_name} prior to going on site and to complete the above tasks in their entirety.\n ${clear_color}"
@@ -917,12 +829,14 @@ print_lcc_replace_template() {     # Prints internal disk template to screen.
 
 print_lcc_reseat_template() {     # Prints internal disk template to screen.
   printf '%.0s=' {1..80}
-  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: Internal* Disk Replacement\n*Note:\tINTERNAL DISK!!!\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nDisk Type:\t${disk_type}\nDescription:\t${int_disk_description}\nPart Number:\t${light_green}${part_num}${lt_gray}\nDisk Serial#:\t${disk_sn_uuid}\n${print_int_variable_line1}\n${print_int_variable_line2}"
+  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: DAE LCC Reseat\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nHardware:\tGEN${hardware_gen}\nMDS Type:\t${mds_layout}-way\nPart Number:\tNot required for reseat. \nDescription:\t${part_description}"
+  [[ -n ${print_lcc_reseat_var_line1} ]] && echo -e "${print_lcc_reseat_var_line1}"
+  [[ -n ${print_lcc_reseat_var_line2} ]] && echo -e "${print_lcc_reseat_var_line2}"
   echo -e "\nCE Action Required:  On Site"
   printf '%.0s-' {1..30}
-  echo -e "\n1- Contact ROCC and arrange for disk replacement prior to going on site.\n2- Follow procedure document for replacing GEN${hardware_gen} *Internal* Disk for Atmos ${atmos_ver5}${replace_method}.\n3- Verify correct disk has been replaced by comparing disk serial# shown above, with SN shown on disk."
-  if [ $node_location != "lond" ] || [ $node_location != "amst" ]; then echo -e "*Note: If any assistance is needed, contact your FSS."; fi
-  echo -e "\nIssue Description: Failed *internal* disk is ready for replacement."
+  echo -e "\n1- Contact ${customer_name} and arrange for LCC Reseat prior to going on site.\n2- Follow procedure document for *replacing* GEN${hardware_gen} DAE LCC (Link Control Card) for Atmos ${atmos_ver5} using the existing hardware.\n3- Verify all DAE disks are seen by cs_hal ( cs_hal list disks ) after finishing the procedure.\n4- Requeue to lab after finishing procedure for further work."
+  [[ $node_location != "lond" || $node_location != "amst" ]] && echo -e "*Note: If any assistance is needed, contact your FSS."
+  echo -e "\nIssue Description: LCC needs reseating."
   printf '%.0s-' {1..58}
   echo -e "\n${customer_contact_info}${customer_contact_location}"
   echo -e "Next Action:\tDispatch CE onsite\nPlease notify the CE to contact ${customer_name} prior to going on site and to complete the above tasks in their entirety.\n ${clear_color}"
