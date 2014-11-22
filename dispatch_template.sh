@@ -12,7 +12,7 @@
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.2.6b                                                    #
+  version=1.2.6c                                                    #
 #####################################################################
 
 ############################################################################################################
@@ -959,20 +959,10 @@ main "$@"
 # customer contact info to text file?                                       - done
 # complete other dispatch templates.                                        - 0/7
     # # `basename $0` -c		# Switch/eth0 connectivity template.            - pending
-    # # `basename $0` -l		# LCC replacement template.                     - in progress
+    # # `basename $0` -l		# LCC replacement template.                     - done
     # # `basename $0` -n		# Node replacement template.                    - pending
     # # `basename $0` -o		# Reboot / Power On dispatch template.          - pending
     # # `basename $0` -p		# Power Supply replacement template.            - pending      #66679408  sndg01k01-is4-004  'Power Supply Redundancy' 'SENSOR_NON_RECOVERABLE'
     # # `basename $0` -r		# Reseat disk dispatch template.                - pending
     # # `basename $0` -w		# Private Switch replacement template.          - pending
 # BZ standardized templates.                                                - pending
-
-###########################################       Testing..       ##########################################
-############################################################################################################
-############################################################################################################
-# Testing: 
-# Gen1: dfw01-is01-003
-# Gen2: iad01-is05-006
-# Gen3: lis1d01-is5-001
-# amst a,  rwc a, tkyo a, tyo1/syd1
-# script_loc="/usr/local/bin";time for x in `cat /var/service/list`; do echo -n "$x  -  ";ssh $x 'echo "$HOSTNAME"'; echo -n "# Copying script: ";scp $script_loc/dispatch_template.sh $x:$script_loc/ ; [[ -e /usr/local/bin/customer_site_info ]] && scp /usr/local/bin/customer_site_info $x:/usr/local/bin/;ssh $x "sh $script_loc/dispatch_template.sh -x"; done
