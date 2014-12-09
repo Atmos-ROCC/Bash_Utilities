@@ -12,7 +12,7 @@
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.2.6c                                                    #
+  version=1.2.6d                                                    #
 #####################################################################
 
 ############################################################################################################
@@ -69,6 +69,7 @@ ${light_magenta}  Other templates:
 ${light_blue}  Administrative options:
     `basename $0` -h		# Display this usage info (help).
     `basename $0` -v		# Display script's current version.
+    `basename $0` -V		# Display system info (site id, tla, hardware gen, atmos version, etc.)
     `basename $0` -x		# Distribute script to all nodes and set execute permissions.
     
 ${lt_gray}  Planned additions:
@@ -899,9 +900,7 @@ do
         ;;
     l)  prep_lcc_templates
         ;;			
-    m)  get_fsuuid 0
-        prepare_disk_template
-        append_dispatch_date
+    m)  cleanup "Not supported yet, will print DAE power cycle template." 99
         ;;
     n)	cleanup "Not supported yet, will print node replacement template." 99
         ;;
@@ -957,7 +956,7 @@ main "$@"
 # TODO
 # fsuuid valid on current node.                                             - done
 # customer contact info to text file?                                       - done
-# complete other dispatch templates.                                        - 0/7
+# complete other dispatch templates.                                        - 1/7
     # # `basename $0` -c		# Switch/eth0 connectivity template.            - pending
     # # `basename $0` -l		# LCC replacement template.                     - done
     # # `basename $0` -n		# Node replacement template.                    - pending
