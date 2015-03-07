@@ -12,7 +12,7 @@
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.2.6d                                                    #
+  version=1.3.0                                                    #
 #####################################################################
 
 ############################################################################################################
@@ -21,7 +21,7 @@
   source_directory="${BASH_SOURCE%/*}"; [[ ! -d "$source_directory" ]] && source_directory="$PWD"
   #. "$source_directory/incl.sh"
   #. "$source_directory/main.sh"
-  script_name=dispatch_template.sh 	
+  script_name="dispatch_template.sh"
   cm_cfg="/etc/maui/cm_cfg.xml" 
   export RMG_MASTER=$(awk -F, '/localDb/ {print $(NF-1)}' $cm_cfg)										# top_view.py -r local | sed -n '4p' | sed 's/.*"\(.*\)"[^"]*$/\1/'
   export INITIAL_MASTER=$(awk -F"\"|," '/systemDb/ {print $(NF-2)}' $cm_cfg)				  # show_master.py |  awk '/System Master/ {print $NF}'
@@ -242,19 +242,40 @@ update_sr_num() {					      # Change the SR number in show_offline_disks script 
 
 append_dispatch_date() {			  # Appends dispatch date in show_offline_disks script text file.
   validate_fsuuid_text_file  
-  if [[ "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*-Dispatched_[0-1][0-9]-[0-3][0-9]-[0-9][0-9]_.* ]]; then 
-    echo -e "${red}# Dispatch date already appended to file. Please check to ensure this disk hasn't already been dispatched against.${clear_color} " 
-    read -p "# Would you like to proceed anyways and update the dispatch date? (y/Y) " -s -n 1 -t 120 redispatch_flag
-    [[ ${redispatch_flag} =~ [yY] ]] || cleanup "" 192
-    sed -i "s/-Dispatched_[0-1][0-9]-[0-3][0-9]-[0-9][0-9]_/-Dispatched_$(date +%m-%d-%y)_/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
-  elif
-    [[ ! "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*#session.* ]]; then
-    sed -i "1s/\(,[0-9]\{8\}\)\($\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
-  else 
-    sed -i "1s/\(,[0-9]\{8\}\)\([#_]\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
-  fi
-  echo -e "\n${light_green}# Dispatch date has been appended to show_offline_disks text file: ${clear_color}"
-  awk -F"," 'NR==1 {print $0}' /var/service/fsuuid_SRs/${fsuuid_var}.txt
+  [[ -e /var/service/show_offline_disks.sh ]] && show_offline_disks_ver=$(/var/service/show_offline_disks.sh -v) || echo -e "${red}# Error: show_offline_disks.sh version not detected.${clear_color}"
+
+  case "${show_offline_disks_ver}:${atmos_ver3}:${hardware_gen}" in   						# hardware_gen:atmos_ver3
+    1.[0-5].[0-9][a-z]:*)       # For versions pre .info file - add SR# in text file.
+        if [[ "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*-Dispatched_[0-1][0-9]-[0-3][0-9]-[0-9][0-9]_.* ]]; then 
+          echo -e "${red}# Dispatch date already appended to .txt file. Please check to ensure this disk hasn't already been dispatched against.${clear_color} " 
+          read -p "# Would you like to proceed with updating the dispatch date? (y/Y) " -s -n 1 -t 120 redispatch_flag
+          [[ ${redispatch_flag} =~ [yY] ]] || cleanup "" 192
+          sed -i "s/-Dispatched_[0-1][0-9]-[0-3][0-9]-[0-9][0-9]_/-Dispatched_$(date +%m-%d-%y)_/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+        elif
+          [[ ! "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*#session.* ]]; then
+          sed -i "1s/\(,[0-9]\{8\}\)\($\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+        else 
+          sed -i "1s/\(,[0-9]\{8\}\)\([#_]\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+        fi
+        echo -e "\n${light_green}# Dispatch date has been appended to show_offline_disks text file: ${clear_color}"
+        awk -F"," 'NR==1 {print $0}' /var/service/fsuuid_SRs/${fsuuid_var}.txt
+      ;;
+    1.[6-9].[0-9][a-z]:* | [2-9].[0-9].[0-9][a-z]:*)       # For versions post .info file
+        if [[ "$(grep -c 'Date_dispatched=' /var/service/fsuuid_SRs/${fsuuid_var}.info)" -gt 0 ]]; then 
+          echo -e "${red}# Dispatch date already appended to .info file. Please check to ensure this disk hasn't already been dispatched against.${clear_color} " 
+          read -p "# Would you like to proceed with updating the dispatch date? (y/Y) " -s -n 1 -t 120 redispatch_flag
+          [[ ${redispatch_flag} =~ [yY] ]] || cleanup "" 193
+          sed -i "s/Date_dispatched=[0-1][0-9]-[0-3][0-9]-[0-9][0-9]/Date_dispatched=$(date +%m-%d-%y)/" /var/service/fsuuid_SRs/${fsuuid_var}.info
+        else 
+          echo "Date_dispatched=$(date +%m-%d-%y)" >> /var/service/fsuuid_SRs/${fsuuid_var}.info
+        fi
+        echo -e "\n${light_green}# Dispatch date has been appended to show_offline_disks .info file: ${clear_color}"
+        grep "Date_dispatched" /var/service/fsuuid_SRs/${fsuuid_var}.info
+      ;;
+    *)                              # Catch-all
+        echo -e "${red}# Error: invalid show_offline_disks.sh version.\n# Date not written to file.${clear_color}"
+      ;;
+  esac
   return 0
 }
 
@@ -336,7 +357,7 @@ set_disk_part_info() {				  # Gets and sets disk part info.
 get_hardware_gen() {				    # Gets and sets HW Gen.
   hardware_product=$(dmidecode | awk '/Product Name/{print $NF; exit}')
     case "$hardware_product" in
-        1950)                   # > Dell 1950 is the Gen 1 hardware
+    1950)                       # > Dell 1950 is the Gen 1 hardware
       hardware_gen=1
       return 0
             ;;
@@ -425,7 +446,7 @@ case "$1" in /*)printf "%s\n" "$1";; *)printf "%s\n" "$PWD/$1";; esac;
 
 distribute_script() {				    # Distribute script across all nodes, and sets permissions.
   full_path=$(get_abs_path $0); this_script=$(basename "$full_path"); this_script_dir=$(dirname "$full_path")
-  [[ "$script_name" == "$this_script" ]] || cleanup "Please rename script to $script_name and try again." 20
+  [[ "$script_name" == "$this_script" ]] || cleanup "Please rename script to $script_name and try again. (err: $this_script)" 20
   echo -en "\n# Distributing script across all nodes.. "
   copy_script=$(mauiscp ${full_path} ${full_path} | awk '/Output/{n=$NF}; !/Output|^$|Runnin/{print n": "$0}' | wc -l)
   [[ $copy_script -eq 0 ]] && echo -e "${light_green}Done!${clear_color} ($this_script copied to all nodes)" || { echo -e "${red}Failed.${clear_color}";fail_flag=1; fail_text="Failed to copy $this_script to all nodes"; }
@@ -529,7 +550,6 @@ prep_int_disk_template() {      # Prepares input for use in print_int_disk_templ
         read -t 120 -n 3 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
         echo -e "\n${clear_color}"
       fi
-      int_dev_path="/dev/${internal_disk_dev_path}"
       [[ ${internal_disk_dev_path} == "a" ]] && internal_disk_dev_path="sda"
       [[ ${internal_disk_dev_path} == "b" ]] && internal_disk_dev_path="sdb"
       [[ ${internal_disk_dev_path} =~ "sd"[ab] ]] || cleanup "Internal disk device path not recognized." 131
@@ -538,6 +558,7 @@ prep_int_disk_template() {      # Prepares input for use in print_int_disk_templ
       internal_uuid=$(mdadm -D /dev/md126 | awk '/UUID/{print $3}')
       [[ ${internal_disk_dev_path} == "sda" ]] && disk_sn_uuid=$(smartctl -i /dev/sg0 | awk '/Serial number/{print $3}')
       [[ ${internal_disk_dev_path} == "sdb" ]] && disk_sn_uuid=$(smartctl -i /dev/sg1 | awk '/Serial number/{print $3}')
+      int_dev_path="/dev/${internal_disk_dev_path}"
       print_int_variable_line1="Raid UUID:\t${internal_uuid}"
       print_int_variable_line2="Dev Path:\t${int_dev_path}"
       echo -e "\n${light_cyan}# Checking utilization of disks, please wait 30 seconds: (iostat -xk 10 3 /dev/sda /dev/sdb) ${clear_color}\n" && iostat -xk 10 3 /dev/sda /dev/sdb
@@ -561,6 +582,7 @@ prep_int_disk_template() {      # Prepares input for use in print_int_disk_templ
   
   echo -en "\n${light_green}# Continue printing dispatch template? (y/Y) [Default = y]: ${clear_color}"
   read -t 120 -n 1 print_internal_disk_temp_flag || cleanup "Timeout: No internal disk given." 171
+  echo
   [[ ${print_internal_disk_temp_flag} =~ [yY] ]] && print_int_disk_template 
   [[ -z ${print_internal_disk_temp_flag} ]] && print_int_disk_template
   return 0
@@ -722,7 +744,7 @@ prep_lcc_templates() {      # Prepares input for use in print_int_disk_template 
         # # cs_hal list enclosures
         # /dev/sg2     30   < 30 disks = 303-172-002D-001
         # total: 1
-  enclosure_size=$(cs_hal list enclosures | awk '/\/dev\/sg2/{print $2}')
+  until [[ -n $enclosure_size ]]; do enclosure_size=$(cs_hal info $(cs_hal list enclosures 2>/dev/null | awk '/\/dev\/sg/{print $1}') 2>/dev/null| awk '/disk slot count/ {print $5}'); done
   mds_layout=$(mauisvcmgr -s mauimds -c getReplicaMode | awk -F= 'NR==1{print $2}')
   
   #Note:	In Atmos versions => 2.1.7.0 the command above will output a “Zoned” value. If this value is “No” the system is a G3 DENSE-480 or G3 FLEX-240.
@@ -764,7 +786,7 @@ prep_lcc_templates() {      # Prepares input for use in print_int_disk_template 
       print_lcc_reseat_var_line1=""
       print_lcc_reseat_var_line2=""
       ;;		
-    2:*)  	                        # Gen 2 Hardware 
+    2:*)  	                          # Gen 2 Hardware 
       part_num='303-076-000D'				  
       part_description='SAS / SATA LCC'
       print_lcc_replace_var_line1=""
@@ -956,6 +978,7 @@ main "$@"
 # TODO
 # fsuuid valid on current node.                                             - done
 # customer contact info to text file?                                       - done
+# move dispatched date to .info file in show_offline_disks versions 1.6.0+  - done
 # complete other dispatch templates.                                        - 1/7
     # # `basename $0` -c		# Switch/eth0 connectivity template.            - pending
     # # `basename $0` -l		# LCC replacement template.                     - done
