@@ -1,0 +1,69 @@
+# skip the startup message
+startup_message off
+
+# Automatically detach on hangup.
+autodetach on
+
+# start with visual bell as default
+vbell off
+# vbell_msg "bell on %t (%n)"
+
+defscrollback 130000
+
+#   Scripts to Check Ticket Volume
+#backtick 1 30 30 /usr/local/bin/generalCount # Counts tickets in general Queue for output
+#backtick 2 30 30 /usr/local/bin/ongoingCount # Counts tickets in Ongoing Queue for output
+#backtick 3 30 30 /usr/local/bin/l3Count # Counts tickets in Ongoing Queue for output
+
+# look and feel
+hardstatus alwayslastline
+
+caption always "%{= bb}%{+b w}%n %h %=%{g}[%{w}General:%{br}%1`%{g}][%{w}Ongoing:%{br}%2`%{g}][%{w}L3:%{br}%3`%{g}]"
+hardstatus string '%{= kG}%-Lw%{= kW}%50> %n*%f %t%{= kG}%+Lw%< %{= kG}%-=%D %m/%d/%y | %C:%s %A | %1`%{-}'
+
+### hardstatus alwayslastline "%-Lw%{= BW}%50>%n%f* %t%{-}%+Lw%< | TIME  %{r} %d/%m/%y %C %A %{w}   |%{w}"
+
+# Startup Screens
+screen -t bash0 0 bash
+screen -t bash1 1 bash
+screen -t bash2 2 bash
+screen -t bash3 3 bash
+screen -t bash4 4 bash
+screen -t bash5 5 bash
+screen -t bash6 6 bash
+screen -t bash7 7 bash
+select 0
+term screen-256color
+
+# ==============================================================
+# BIND and the Services:
+# ==============================================================
+# remove some stupid / dangerous key bindings
+  bind k
+  bind ^k
+  bind .
+  bind ^\
+  bind \\
+  bind ^h
+#  bind h
+  bind h  hardcopy
+  bind s
+
+# make them better
+  bind 'K' kill
+  bind 'I' login on
+  bind 'O' login off
+  bind '}' history
+
+bind L screen -t 'links' 4 links http://google.com
+
+#   Bottom Line Messages
+#caption     always          "%{= g} %=%-w%45L>[%{LG}%n-%t]%+w%="
+#hardstatus  alwayslastline  '%{= g}[%H]%=[%{b}General:%{r}%1`%{g}][%{b}Ongoing:%{r}%2`%{g}][%{b}L3:%{r}%3`%{g}]%=%-13=[%d/%m %c]'
+
+#   Term Cap Info
+termcapinfo * ti@:te@  # Allow scroll back in screen
+termcapinfo xterm*|Eterm|mlterm "hs:ts=\E]0;:fs=\007:ds=\E]0;screen\007"
+
+# cat logo.txt
+
