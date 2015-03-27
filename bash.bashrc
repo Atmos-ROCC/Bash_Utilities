@@ -7,7 +7,40 @@ cstaas_node_curr_pass=""
 cstaas_jumpbox_curr_pass=""
 cstaas_jumpbox_old_pass=""
 
-version 2.0
+version=2.2
+
+## names of conf files for each site, WITHOUT the .conf extension.
+## names of conf files for each site, WITHOUT the .conf extension.
+## names of conf files for each site, WITHOUT the .conf extension.
+vpnc_conf_beatle_alln01="beatle-alln01"
+vpnc_conf_beatle_amst01="beatle-amst01"
+vpnc_conf_beatle_dfw1="beatle-dfw1"
+vpnc_conf_beatle_hnkg01="beatle-hnkg01"
+vpnc_conf_beatle_lis1="beatle-lis1"
+vpnc_conf_beatle_lond01="beatle-lond01"
+vpnc_conf_beatle_rdcy01="beatle-rdcy01"
+vpnc_conf_beatle_rwc1="beatle-rwc1"
+vpnc_conf_beatle_sec1="beatle-sec1"
+vpnc_conf_beatle_sndg01="beatle-sndg01"
+vpnc_conf_beatle_stls01="beatle-stls01"
+vpnc_conf_beatle_syd1="beatle-syd1"
+vpnc_conf_beatle_tkyo01="beatle-tkyo01"
+vpnc_conf_beatle_tyo1="beatle-tyo1"
+vpnc_conf_cstaas_ams="cstaas-ams"
+vpnc_conf_cstaas_dfw="cstaas-dfw"
+vpnc_conf_cstaas_iad="cstaas-iad"
+vpnc_conf_cstaas_lon="cstaas-lon"
+vpnc_conf_gouda_lsvg01="gouda-lsvg01"
+vpnc_conf_gouda_stng01="gouda-stng01"
+vpnc_conf_govcst_dfw="govcst-dfw"
+vpnc_conf_govcst_iad="govcst-iad"
+vpnc_conf_mozy_ext="mozy-ext"
+vpnc_conf_mozy_int="mozy-int"
+## names of conf files for each site, WITHOUT the .conf extension.
+## names of conf files for each site, WITHOUT the .conf extension.
+## names of conf files for each site, WITHOUT the .conf extension.
+
+
 #####################################################################################################################
 # System-wide .bashrc file for interactive bash(1) shells.
 setup_defaults() {
@@ -137,18 +170,27 @@ setup_defaults
 
 ###Mozy VPN
 connect_mozy_vpn() {
+v1=$vpnc_conf_mozy_ext
+v2=$vpnc_conf_mozy_int
 echo -en "${light_cyan}Checking for Mozy VPN: ${clear_color}"
-[[ $(ps aux | egrep -c "[v]pnc mozy-ext.conf") -eq 1 ]] && echo "Detected Mozy-ext VPN" || { [[ $(ps aux | egrep -c "[v]pnc mozy-int.conf") -eq 1 ]] && echo "Detected Mozy-Int VPN" || { sudo vpnc mozy-ext.conf || sudo vpnc mozy-int.conf; }; }
+[[ $(ps aux | egrep -c "[v]pnc $v1.conf") -eq 1 ]] && echo "Detected Mozy-EXT VPN" || { [[ $(ps aux | egrep -c "[v]pnc $v2.conf") -eq 1 ]] && echo "Detected Mozy-INT VPN" || { { echo -e "${light_green}# Opening VPN connection to $1${clear_color}"; sudo vpnc $v1.conf; } || { echo -e "${red}# Opening connection to $v1 failed.\n${light_green}# Opening VPN connection to $v2${clear_color}";sudo vpnc $v2.conf; }; }; }
 }
 
 ###BEATLE ALIASES###
+#Phase 2 #####################################################################################################################################
+#Phase 2 #####################################################################################################################################
+connect_phase1(){
+#connect_mozy_vpn
+echo -e "${light_cyan}# Detecting VPN connection for $1${clear_color}"
+[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}# VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -e "${light_green}# Opening VPN connection to $1${clear_color}"; sudo vpnc $1.conf; } || { echo -e "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2${clear_color}";sudo vpnc $2.conf; }; }; }
+[[ -z "$4" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$4"
+echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
+[[ -n "$3" ]] && { [[ -n "$5" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$5"; } || sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"
+}
+
 #Phase 1 West
 connect_dfw() {
-connect_mozy_vpn
-[[ $(ps aux | egrep -c "[v]pnc beatle-dfw1") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc beatle-rwc1") -eq 1 ]] || { sudo vpnc beatle-dfw1.conf || sudo vpnc beatle-rwc1.conf; }; }
-[[ -z "$2" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$2"
-[[ -n "$3" ]] && { sshpass -p "${beatle_curr_pass}" ssh -o StrictHostKeyChecking=no -t -t -R 8080:127.0.0.1:80 root@"$1" ssh "$3"; return 0; }
-[[ -n "$1" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no root@"$1"
+connect_phase1 "${vpnc_conf_beatle_dfw1}" "${vpnc_conf_beatle_rwc1}" "$1" "$2" "$3"
 }
 alias dfw="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval dfw\${cloudlet}"
 alias dfwmon="connect_dfw 172.16.34.41 ${beatle_mon_curr_pass}"
@@ -159,11 +201,7 @@ alias dfwc="connect_dfw 172.16.22.11 ${beatle_curr_pass} 172.16.30.139"
 alias dfwd="connect_dfw 172.16.22.11 ${beatle_curr_pass} 172.16.30.203"
 
 connect_rwc() {
-connect_mozy_vpn
-[[ $(ps aux | egrep -c "[v]pnc beatle-rwc1") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc beatle-dfw1") -eq 1 ]] || { sudo vpnc beatle-rwc1.conf || sudo vpnc beatle-dfw1.conf; }; }
-[[ -z "$2" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$2"
-[[ -n "$3" ]] && { sshpass -p "${beatle_curr_pass}" ssh -o StrictHostKeyChecking=no -t -t -R 8080:127.0.0.1:80 root@"$1" ssh "$3"; return 0; }
-[[ -n "$1" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no root@"$1"
+connect_phase1 "${vpnc_conf_beatle_rwc1}" "${vpnc_conf_beatle_dfw1}" "$1" "$2" "$3"
 }
 alias rwc="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval rwc\${cloudlet}"
 alias rwcmon="connect_rwc 172.17.34.41 ${beatle_mon_curr_pass}"
@@ -175,11 +213,8 @@ alias rwcd="connect_rwc 172.17.22.11 ${beatle_curr_pass} 172.17.30.203"
 
 #Phase 1 East
 connect_lis() {
-connect_mozy_vpn
-[[ $(ps aux | egrep -c "[v]pnc beatle-lis1") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc beatle-sec1") -eq 1 ]] || { sudo vpnc beatle-lis1.conf || sudo vpnc beatle-sec1.conf; }; }
-[[ -z "$2" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$2"
-[[ -n "$3" ]] && { sshpass -p "${beatle_curr_pass}" ssh -o StrictHostKeyChecking=no -t -t -R 8080:127.0.0.1:80 root@"$1" ssh "$3"; return 0; }
-[[ -n "$1" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no root@"$1"
+connect_phase1 "${vpnc_conf_beatle_lis1}" "${vpnc_conf_beatle_sec1}" "$1" "$2" "$3"
+
 }
 alias lis="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval lis\${cloudlet}"
 alias lismon="connect_lis 172.18.34.41 ${beatle_mon_curr_pass}"
@@ -190,11 +225,8 @@ alias lisc="connect_lis 172.18.22.11 ${beatle_curr_pass} 172.18.30.139"
 alias lisd="connect_lis 172.18.22.11 ${beatle_curr_pass} 172.18.30.203"
 
 connect_sec() {
-connect_mozy_vpn
-[[ $(ps aux | egrep -c "[v]pnc beatle-sec1") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc beatle-lis1") -eq 1 ]] || { sudo vpnc beatle-sec1.conf || sudo vpnc beatle-lis1.conf; }; }
-[[ -z "$2" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$2"
-[[ -n "$3" ]] && { sshpass -p "${beatle_curr_pass}" ssh -o StrictHostKeyChecking=no -t -t -R 8080:127.0.0.1:80 root@"$1" ssh "$3"; return 0; }
-[[ -n "$1" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no root@"$1"
+connect_phase1 "${vpnc_conf_beatle_sec1}" "${vpnc_conf_beatle_lis1}" "$1" "$2" "$3"
+
 }
 alias sec="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval sec\${cloudlet}"
 alias secmon="connect_sec 172.19.34.41 ${beatle_mon_curr_pass}"
@@ -206,11 +238,7 @@ alias secd="connect_sec 172.19.22.11 ${beatle_curr_pass} 172.19.30.203"
 
 #Phase 1 APJ
 connect_syd() {
-connect_mozy_vpn
-[[ $(ps aux | egrep -c "[v]pnc beatle-syd1") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc beatle-tyo1") -eq 1 ]] || { sudo vpnc beatle-syd1.conf || sudo vpnc beatle-tyo1.conf; }; }
-[[ -z "$2" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$2"
-[[ -n "$3" ]] && { sshpass -p "${beatle_curr_pass}" ssh -o StrictHostKeyChecking=no -t -t -R 8080:127.0.0.1:80 root@"$1" ssh "$3"; return 0; }
-[[ -n "$1" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no root@"$1"
+connect_phase1 "${vpnc_conf_beatle_syd1}" "${vpnc_conf_beatle_tyo1}" "$1" "$2" "$3"
 }
 alias syd="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval syd\${cloudlet}"
 alias sydmon="connect_syd ${beatle_mon_curr_pass} 172.30.34.41"
@@ -222,10 +250,8 @@ alias sydd="connect_syd 172.30.22.11 ${beatle_curr_pass} 172.30.30.203"
 
 connect_tyo() {
 connect_mozy_vpn
-[[ $(ps aux | egrep -c "[v]pnc beatle-tyo1") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc beatle-syd1") -eq 1 ]] || { sudo vpnc beatle-tyo1.conf || sudo vpnc beatle-syd1.conf; }; }
-[[ -z "$2" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$2"
-[[ -n "$3" ]] && { sshpass -p "${beatle_curr_pass}" ssh -o StrictHostKeyChecking=no -t -t -R 8080:127.0.0.1:80 root@"$1" ssh "$3"; return 0; }
-[[ -n "$1" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no root@"$1"
+connect_phase1 "${vpnc_conf_beatle_tyo1}" "${vpnc_conf_beatle_syd1}" "$1" "$2" "$3"
+
 }
 alias tyo="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval tyo\${cloudlet}"
 alias tyomon="connect_tyo 172.31.34.41 ${beatle_mon_curr_pass}"
@@ -240,7 +266,7 @@ alias tyod="connect_tyo 172.31.22.11 ${beatle_curr_pass} 172.31.30.203"
 connect_phase2(){
 #connect_mozy_vpn
 echo -e "${light_cyan}# Detecting VPN connection for $1${clear_color}"
-[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}# VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -e "${light_green}# Opening VPN connection to $1${clear_color}"; sudo vpnc $1.conf; } || { echo -e "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $1${clear_color}";sudo vpnc $2.conf; }; }; }
+[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}# VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -e "${light_green}# Opening VPN connection to $1${clear_color}"; sudo vpnc $1.conf; } || { echo -e "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2${clear_color}";sudo vpnc $2.conf; }; }; }
 [[ -z "$4" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$4"
 echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
 [[ -n "$3" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"
@@ -248,7 +274,7 @@ echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
 
 
 connect_alln() {
-connect_phase2 beatle-alln01 beatle-rdcy01 "$1" "$2"
+connect_phase2 ${vpnc_conf_beatle_alln01} "${vpnc_conf_beatle_rdcy01}" "$1" "$2"
 }
 alias alln="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval alln\${cloudlet}"
 alias allnmon="connect_alln 172.20.32.141 ${beatle_mon_curr_pass}"
@@ -274,7 +300,7 @@ alias allns="connect_alln 172.20.52.139"
 alias allnt="connect_alln 172.20.52.203"
 
 connect_rdcy() {
-connect_phase2 beatle-rdcy01 beatle-alln01 "$1" "$2"
+connect_phase2 "${vpnc_conf_beatle_rdcy01}" ${vpnc_conf_beatle_alln01} "$1" "$2"
 }
 alias rdcy="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval rdcy\${cloudlet}"
 alias rdcymon="connect_rdcy 172.20.0.141 ${beatle_mon_curr_pass}"
@@ -300,7 +326,7 @@ alias rdcys="connect_rdcy 172.20.20.139"
 alias rdcyt="connect_rdcy 172.20.20.203"
 
 connect_sndg() {
-connect_phase2 beatle-sndg01 beatle-stls01 "$1" "$2"
+connect_phase2 "${vpnc_conf_beatle_sndg01}" "${vpnc_conf_beatle_stls01}" "$1" "$2"
 }
 alias sndg="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval sndg\${cloudlet}"
 alias sndgmon="connect_sndg 172.21.0.141 ${beatle_mon_curr_pass}"
@@ -326,7 +352,7 @@ alias sndgs="connect_sndg 172.21.20.139"
 alias sndgt="connect_sndg 172.21.20.203"
 
 connect_stls() {
-connect_phase2 beatle-stls01 beatle-sndg01 "$1" "$2"
+connect_phase2 "${vpnc_conf_beatle_stls01}" "${vpnc_conf_beatle_sndg01}" "$1" "$2"
 }
 alias stls="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval stls\${cloudlet}"
 alias stlsmon="connect_stls 172.21.32.141 ${beatle_mon_curr_pass}"
@@ -356,7 +382,7 @@ alias stlst="connect_stls 172.21.52.203"
 
 #Phase 2 EMEA
 connect_amst() {
-connect_phase2 beatle-amst01 beatle-lond01 "$1" "$2"
+connect_phase2 "${vpnc_conf_beatle_amst01}" "${vpnc_conf_beatle_lond01}" "$1" "$2"
 }
 alias amst="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval amst\${cloudlet}"
 alias amstmon="connect_amst 172.22.32.142 ${beatle_mon_curr_pass}"
@@ -382,7 +408,7 @@ alias amsts="connect_amst 172.22.52.139"
 alias amstt="connect_amst 172.22.52.203"
 
 connect_lond() {
-connect_phase2 beatle-lond01 beatle-amst01 "$1" "$2"
+connect_phase2 "${vpnc_conf_beatle_lond01}" "${vpnc_conf_beatle_amst01}" "$1" "$2"
 }
 alias lond="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval lond\${cloudlet}"
 alias londmon="connect_lond 172.22.0.141 ${beatle_mon_curr_pass}"
@@ -409,7 +435,7 @@ alias londt="connect_lond 172.22.20.203"
 
 #Phase 2 APAC
 connect_tkyo() {
-connect_phase2 beatle-tkyo01 beatle-hnkg01 "$1" "$2"
+connect_phase2 "${vpnc_conf_beatle_tkyo01}" "${vpnc_conf_beatle_hnkg01}" "$1" "$2"
 }
 alias tkyo="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval tkyo\${cloudlet}"
 alias tkyomon="connect_tkyo 172.23.0.141 ${beatle_mon_curr_pass}"
@@ -439,7 +465,7 @@ alias tkyos="connect_tkyo 172.23.20.139"
 alias tkyot="connect_tkyo 172.23.20.203"
 
 connect_hnkg() {
-connect_phase2 beatle-hnkg01 beatle-tkyo01 "$1" "$2"
+connect_phase2 "${vpnc_conf_beatle_hnkg01}" "${vpnc_conf_beatle_tkyo01}" "$1" "$2"
 }
 alias hnkg="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo;eval hnkg\${cloudlet}"
 alias hnkgmon="connect_hnkg 172.23.32.141 ${beatle_mon_curr_pass}"
@@ -486,15 +512,15 @@ alias hnkgwin='rdesktop -u administrator -g 1152x864 -a16 -rclipboard:PRIMARYCLI
 connect_gouda(){
 #connect_mozy_vpn
 echo -e "${light_cyan}# Detecting VPN connection for $1${clear_color}"
-[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}# VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -en "${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $1:  ${clear_color}";sudo vpnc $2.conf; }; }; }
+[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}# VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -en "${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2:  ${clear_color}";sudo vpnc $2.conf; }; }; }
 [[ -z "$5" ]] && rubi_pass="${personal_gouda_pass}" || rubi_pass="$5"
 echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
 [[ -n "$3" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no ${emc_nt_username}@"$3" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no ${emc_nt_username}@"$4"
 }
 ## ECS/ViPR in Las Vegas (lsvg)
 connect_lsvg() {
-connect_gouda gouda-lsvg01 gouda-stng01 ljb01.lsvg01.osaas.rcsops.com "$1" "$2"
-# [[ $(ps aux | egrep -c "[v]pnc gouda-lsvg01") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc gouda-stng01") -eq 1 ]] || { sudo vpnc gouda-lsvg01.conf || sudo vpnc gouda-stng01.conf; }; }
+connect_gouda "${vpnc_conf_gouda_lsvg01}" "${vpnc_conf_gouda_stng01}" ljb01.lsvg01.osaas.rcsops.com "$1" "$2"
+# [[ $(ps aux | egrep -c "[v]pnc "${vpnc_conf_gouda_lsvg01}"") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc "${vpnc_conf_gouda_stng01}"") -eq 1 ]] || { sudo vpnc "${vpnc_conf_gouda_lsvg01}".conf || sudo vpnc "${vpnc_conf_gouda_stng01}".conf; }; }
 # [[ -z "$2" ]] && rubi_pass="${gouda_vipr_curr_pass}" || rubi_pass="$2"
 # [[ -n "$1" ]] && sshpass -p "${rubi_pass}" ssh -vo StrictHostKeyChecking=no root@"$1"
 # # ljb01.lsvg01.osaas.rcsops.com
@@ -516,8 +542,8 @@ alias lsvg_jb='sshpass -p ${personal_gouda_pass} ssh ${emc_nt_username}@ljb01.ls
 
 ## ECS/ViPR in Sterling (stng)
 connect_stng() {
-connect_gouda gouda-stng01 gouda-lsvg01 ljb01.stng01.osaas.rcsops.com "$1" "$2"
-# [[ $(ps aux | egrep -c "[v]pnc gouda-stng01") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc gouda-lsvg01") -eq 1 ]] || { sudo vpnc gouda-stng01.conf || sudo vpnc gouda-lsvg01.conf; }; }
+connect_gouda "${vpnc_conf_gouda_stng01}" "${vpnc_conf_gouda_lsvg01}" ljb01.stng01.osaas.rcsops.com "$1" "$2"
+# [[ $(ps aux | egrep -c "[v]pnc "${vpnc_conf_gouda_stng01}"") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc "${vpnc_conf_gouda_lsvg01}"") -eq 1 ]] || { sudo vpnc "${vpnc_conf_gouda_stng01}".conf || sudo vpnc "${vpnc_conf_gouda_lsvg01}".conf; }; }
 # #[[ -z "$2" ]] && rubi_pass="${gouda_vipr_curr_pass}" || rubi_pass="$2"
 # [[ -n "$1" ]] && sshpass -p "${personal_gouda_pass}" ssh -vo StrictHostKeyChecking=no ${emc_nt_username}@ljb01.stng01.osaas.rcsops.com ssh -vo StrictHostKeyChecking=no ${emc_nt_username}@"$1"
 }
@@ -542,25 +568,29 @@ alias stng_jb='sshpass -p ${personal_gouda_pass} ssh ${emc_nt_username}@ljb01.st
 # CSTaaS #####################################################################################################################################
 connect_cstaas() {
 #connect_mozy_vpn
-echo -e "${light_cyan}# Detecting VPN connection for $1${clear_color}"
-[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}# VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -en "${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $1:  ${clear_color}";sudo vpnc $2.conf; }; }; }
+echo -e "${light_cyan}# Detecting VPN connection for $1: ${clear_color}"
+[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2: ${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -en "${red}VPN for $2 not found.\n${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2:  ${clear_color}";sudo vpnc $2.conf; }; }; }
 [[ -z "$5" ]] && rubi_pass="${cstaas_jumpbox_curr_pass}" || rubi_pass="$5"
 echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
-[[ -n "$3" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$4"
+[[ -n "$3" ]] && { [[ -n "$4" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" sshpass -p "${cstaas_node_curr_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$4"; } || sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"
 }
 
-alias cstdfw="connect_cstaas cstaas-dfw cstaas-iad 172.21.224.45 172.31.30.11"
-alias cstiad="connect_cstaas cstaas-iad cstaas-dfw 172.20.224.45 172.31.46.11"
-alias cstlon="connect_cstaas cstaas-lon cstaas-ams "
-alias cstams="connect_cstaas cstaas-ams cstaas-lon "
+alias cstdfwjb=" connect_cstaas ${vpnc_conf_cstaas_dfw} ${vpnc_conf_cstaas_iad} 172.21.224.45"
+alias cstiadjb=" connect_cstaas ${vpnc_conf_cstaas_iad} ${vpnc_conf_cstaas_dfw} 172.20.224.45" 
+alias cstdfw="   connect_cstaas ${vpnc_conf_cstaas_dfw} ${vpnc_conf_cstaas_iad} 172.21.224.45 172.31.30.11"
+alias cstiad="   connect_cstaas ${vpnc_conf_cstaas_iad} ${vpnc_conf_cstaas_dfw} 172.20.224.45 172.31.46.11" 
+alias cstlonjb=" connect_cstaas ${vpnc_conf_cstaas_lon} ${vpnc_conf_cstaas_ams} 172.31.1.45"
+alias cstamsjb=" connect_cstaas ${vpnc_conf_cstaas_ams} ${vpnc_conf_cstaas_lon} 172.31.1.45"
+alias cstlon="   connect_cstaas ${vpnc_conf_cstaas_lon} ${vpnc_conf_cstaas_ams} 172.31.1.45"
+alias cstams="   connect_cstaas ${vpnc_conf_cstaas_ams} ${vpnc_conf_cstaas_lon} 172.31.1.45"
+alias govdfw="   connect_cstaas ${vpnc_conf_govcst_dfw} ${vpnc_conf_govcst_iad} 10.200.144.11"
+alias goviad="   connect_cstaas ${vpnc_conf_govcst_iad} ${vpnc_conf_govcst_dfw} 10.202.144.11"
+alias govdfwmon="connect_cstaas ${vpnc_conf_govcst_dfw} ${vpnc_conf_govcst_iad} 10.200.128.141"
+alias goviadmon="connect_cstaas ${vpnc_conf_govcst_iad} ${vpnc_conf_govcst_dfw} 10.202.128.141"
+
 # CSTaaS Jumpboxes
 # alias iad='ssh -qtAC simisb@172.20.224.51 "$@"'
 # alias dfws='ssh -qtAC simisb@172.21.224.51 "$@"'
-###CSTaaS ALIASES###
-# alias iadv="sudo vpnc staas-iad.conf"
-# alias iad='ssh -qtAC simisb@172.20.224.45 "$@"'
-# alias dfwsv="sudo vpnc staas-dfw.conf"
-
 
 ##############################################################################################################################################
 #        #####################################################################################################################################
