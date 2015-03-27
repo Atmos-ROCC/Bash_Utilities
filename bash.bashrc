@@ -7,7 +7,7 @@ cstaas_node_curr_pass=""
 cstaas_jumpbox_curr_pass=""
 cstaas_jumpbox_old_pass=""
 
-version=2.2
+version=2.3
 
 ## names of conf files for each site, WITHOUT the .conf extension.
 ## names of conf files for each site, WITHOUT the .conf extension.
@@ -602,10 +602,10 @@ alias refreshwireless="echo -e \"\n\"; getnew(){ echo -e \"# Refreshing connecti
 
 show_vpn_shortcuts() {
 echo -e "\n\n\tOpen VPN connections: \n$(ps aux|egrep [v]pnc)\n\n\tAvailable VPN connections: "
-egrep "[b]eatle-[a-z]*1.conf" /etc/bash.bashrc | awk 'BEGIN {FS="sudo vpnc beatle-|1.conf";   printf "\n\t     Beatle Phase 1: \n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}' 
-egrep "[b]eatle-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="beatle-|01"; printf "\n\t     Beatle Phase 2: \n\n"};/beatle/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
-egrep "connect_cstaas " /etc/bash.bashrc | awk 'BEGIN {FS="alias |=|\"|connect_cstaas"; printf "\t     CSTaaS: \n\n"};/alias/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
-egrep "[g]ouda-[a-z]*01.conf" /etc/bash.bashrc | awk 'BEGIN {FS="sudo vpnc gouda-|01.conf"; printf "\n\t     Gouda (ECS): \n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
+egrep "[b]eatle-[a-z]*1" /etc/bash.bashrc | awk 'BEGIN {FS="\"beatle-|1\"";   printf "\n\t     Beatle Phase 1: \n\n"};/beatle-/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}' 
+egrep "[b]eatle-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="\"beatle-|01\""; printf "\n\t     Beatle Phase 2: \n\n"};/beatle-/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
+egrep "connect_cstaas " /etc/bash.bashrc | awk 'BEGIN {FS="alias |=|\"|connect_cstaas"; printf "\t     CSTaaS: (add jb to connect to the jumpbox) \n\n"};!/jb/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s",a[5],a[0],a[1],a[2],a[3]} END{printf ""}'
+egrep "[g]ouda-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="\"gouda-|01\""; printf "\n\t     Gouda (ECS): \n\n"};/gouda/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
 # | awk '\''function red(string) { printf ("%s%s%s", "\033[1;31m", string, "\033[0m "); }; function green(string) { printf ("%s%s%s", "\033[1;32m", string, "\033[0m "); };BEGIN {FS="sudo vpnc beatle-|sudo vpnc cstaas-|sudo vpnc gouda-|01.conf|1.conf"; printf "\n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n\n\n\n\n\n\n"}'\'' '
 #'echo -e "\n\n";ps aux|egrep [v]pnc; egrep "[c]onf" /etc/bash.bashrc | egrep -v "[s]sh|vpn=|refreship=" | awk '\''function red(string) { printf ("%s%s%s", "\033[1;31m", string, "\033[0m "); }; function green(string) { printf ("%s%s%s", "\033[1;32m", string, "\033[0m "); };BEGIN {FS="sudo vpnc beatle-|sudo vpnc cstaas-|sudo vpnc gouda-|01.conf|1.conf"; printf "\n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n\n\n\n\n\n\n"}'\'' '
 }
