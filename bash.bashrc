@@ -7,7 +7,7 @@ cstaas_node_curr_pass=""
 cstaas_jumpbox_curr_pass=""
 cstaas_jumpbox_old_pass=""
 
-version=2.4
+version=3.0
 always_check_mozy_vpn=0         ## set to 1 to always check and connect to the mozy vpn before opening other vpn connections.
 
 ## names of conf files for each site, WITHOUT the .conf extension.
@@ -40,7 +40,6 @@ vpnc_conf_mozy_int="mozy-int"
 ## names of conf files for each site, WITHOUT the .conf extension.
 ## names of conf files for each site, WITHOUT the .conf extension.
 ## names of conf files for each site, WITHOUT the .conf extension.
-
 
 #####################################################################################################################
 # System-wide .bashrc file for interactive bash(1) shells.
@@ -158,6 +157,7 @@ clear_color=$(echo -e "\E[0m")
 #####################################################################################################################
 }
 setup_defaults
+[[ -e /etc/bash.gouda_rack_info ]] && . /etc/bash.gouda_rack_info || echo -e "${red}ALERT: /etc/bash.gouda_rack_info file not found.${clear_color}"
 
 ###Mozy VPN
 connect_mozy_vpn() {
@@ -167,23 +167,24 @@ echo -en "${light_cyan}Checking for Mozy VPN: ${clear_color}"
 [[ $(ps aux | egrep -c "[v]pnc $v1.conf") -eq 1 ]] && echo "Detected Mozy-EXT VPN" || { [[ $(ps aux | egrep -c "[v]pnc $v2.conf") -eq 1 ]] && echo "Detected Mozy-INT VPN" || { { echo -e "${light_green}# Opening VPN connection to $1${clear_color}"; sudo vpnc $v1.conf; } || { echo -e "${red}# Opening connection to $v1 failed.\n${light_green}# Opening VPN connection to $v2${clear_color}";sudo vpnc $v2.conf; }; }; }
 }
 
+connect_vpn(){
+echo -en "${light_cyan}# Detecting VPN connection for $1: ${clear_color}"; [[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] && echo -e "${light_green} $1 VPN connected.${clear_color}" || { echo -e "${red} $1 VPN not found."; echo -en "${light_cyan}# Detecting VPN connection for $2: ${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] && echo -e "${light_green} $2 VPN connected.${clear_color}" || { { echo -e "${red} $2 VPN not found.";echo -en "${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2:  ${clear_color}";sudo vpnc $2.conf || echo -en "${red}# Opening connection to $2 failed.\n${clear_color}"; }; }; }
+}
 ###BEATLE ALIASES###
 #Phase 2 #####################################################################################################################################
 #Phase 2 #####################################################################################################################################
 connect_phase1(){
 [[ $always_check_mozy_vpn -eq 1 ]] && connect_mozy_vpn
-echo -e "${light_cyan}# Detecting VPN connection for $1${clear_color}"
-[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}# VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -e "${light_green}# Opening VPN connection to $1${clear_color}"; sudo vpnc $1.conf; } || { echo -e "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2${clear_color}";sudo vpnc $2.conf; }; }; }
+connect_vpn $1 $2
 [[ -z "$4" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$4"
-echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
-[[ -n "$3" ]] && { [[ -n "$5" ]] && sshpass -p "${rubi_pass}" ssh -qto StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$5"; } || sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"
+[[ -n "$3" ]] && [[ -n "$5" ]] && { echo -e "${cyan}# Connect through jumpbox to node:\t${green}ssh $3 >> ssh $5 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qto StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" ssh -qttACo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$5" || { echo -e "${red}# Connection attempt failed.\n${cyan}# Trying to connect to jumpbox: ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no "$3"; }; } || { echo -e "${cyan}# Connect directly to node: \t${green}ssh $3 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"; }
 }
 
 #Phase 1 West
 connect_dfw() {
 connect_phase1 "${vpnc_conf_beatle_dfw1}" "${vpnc_conf_beatle_rwc1}" "$1" "$2" "$3"
 }
-alias dfw="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval dfw\${cloudlet}"
+alias dfw="clear;echo -en \"${light_cyan}Which site would you like to connect to? (1,a,b,c,d):${clear_color} \"; read -n 1 cloudlet; echo; eval dfw\${cloudlet}"
 alias dfwmon="connect_dfw 172.16.34.41 ${beatle_mon_curr_pass}"
 alias dfw1="connect_dfw 172.16.22.11"
 alias dfwa="connect_dfw 172.16.22.11 ${beatle_curr_pass} 172.16.30.11"
@@ -194,7 +195,7 @@ alias dfwd="connect_dfw 172.16.22.11 ${beatle_curr_pass} 172.16.30.203"
 connect_rwc() {
 connect_phase1 "${vpnc_conf_beatle_rwc1}" "${vpnc_conf_beatle_dfw1}" "$1" "$2" "$3"
 }
-alias rwc="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval rwc\${cloudlet}"
+alias rwc="clear;echo -en \"${light_cyan}Which site would you like to connect to? (1,a,b,c,d):${clear_color} \"; read -n 1 cloudlet; echo; eval rwc\${cloudlet}"
 alias rwcmon="connect_rwc 172.17.34.41 ${beatle_mon_curr_pass}"
 alias rwc1="connect_rwc 172.17.22.11"
 alias rwca="connect_rwc 172.17.22.11 ${beatle_curr_pass} 172.17.30.11"
@@ -207,7 +208,7 @@ connect_lis() {
 connect_phase1 "${vpnc_conf_beatle_lis1}" "${vpnc_conf_beatle_sec1}" "$1" "$2" "$3"
 
 }
-alias lis="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval lis\${cloudlet}"
+alias lis="clear;echo -en \"${light_cyan}Which site would you like to connect to? (1,a,b,c,d):${clear_color} \"; read -n 1 cloudlet; echo; eval lis\${cloudlet}"
 alias lismon="connect_lis 172.18.34.41 ${beatle_mon_curr_pass}"
 alias lis1="connect_lis 172.18.22.11"
 alias lisa="connect_lis 172.18.22.11 ${beatle_curr_pass} 172.18.30.11"
@@ -219,7 +220,7 @@ connect_sec() {
 connect_phase1 "${vpnc_conf_beatle_sec1}" "${vpnc_conf_beatle_lis1}" "$1" "$2" "$3"
 
 }
-alias sec="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval sec\${cloudlet}"
+alias sec="clear;echo -en \"${light_cyan}Which site would you like to connect to? (1,a,b,c,d):${clear_color} \"; read -n 1 cloudlet; echo; eval sec\${cloudlet}"
 alias secmon="connect_sec 172.19.34.41 ${beatle_mon_curr_pass}"
 alias sec1="connect_sec 172.19.22.11"
 alias seca="connect_sec 172.19.22.11 ${beatle_curr_pass} 172.19.30.11"
@@ -231,7 +232,7 @@ alias secd="connect_sec 172.19.22.11 ${beatle_curr_pass} 172.19.30.203"
 connect_syd() {
 connect_phase1 "${vpnc_conf_beatle_syd1}" "${vpnc_conf_beatle_tyo1}" "$1" "$2" "$3"
 }
-alias syd="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval syd\${cloudlet}"
+alias syd="clear;echo -en \"${light_cyan}Which site would you like to connect to? (1,a,b,c,d):${clear_color} \"; read -n 1 cloudlet; echo; eval syd\${cloudlet}"
 alias sydmon="connect_syd ${beatle_mon_curr_pass} 172.30.34.41"
 alias syd1="connect_syd 172.30.22.11"
 alias syda="connect_syd 172.30.22.11 ${beatle_curr_pass} 172.30.30.11"
@@ -244,7 +245,7 @@ connect_mozy_vpn
 connect_phase1 "${vpnc_conf_beatle_tyo1}" "${vpnc_conf_beatle_syd1}" "$1" "$2" "$3"
 
 }
-alias tyo="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval tyo\${cloudlet}"
+alias tyo="clear;echo -en \"${light_cyan}Which site would you like to connect to? (1,a,b,c,d):${clear_color} \"; read -n 1 cloudlet; echo; eval tyo\${cloudlet}"
 alias tyomon="connect_tyo 172.31.34.41 ${beatle_mon_curr_pass}"
 alias tyo1="connect_tyo 172.31.22.11"
 alias tyoa="connect_tyo 172.31.22.11 ${beatle_curr_pass} 172.31.30.11"
@@ -256,13 +257,10 @@ alias tyod="connect_tyo 172.31.22.11 ${beatle_curr_pass} 172.31.30.203"
 #Phase 2 #####################################################################################################################################
 connect_phase2(){
 [[ $always_check_mozy_vpn -eq 1 ]] && connect_mozy_vpn
-echo -e "${light_cyan}# Detecting VPN connection for $1${clear_color}"
-[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}# VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -e "${light_green}# Opening VPN connection to $1${clear_color}"; sudo vpnc $1.conf; } || { echo -e "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2${clear_color}";sudo vpnc $2.conf; }; }; }
+connect_vpn $1 $2
 [[ -z "$4" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$4"
-echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
-[[ -n "$3" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"
+[[ -n "$3" ]] && { echo -e "${cyan}# Connect directly to node:\t${green}ssh $3 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qtACo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" || echo -e "${red}# Connection attempt failed.${clear_color}"; } || echo -e "${red}# No host given to connect to${clear_color}"
 }
-
 
 connect_alln() {
 connect_phase2 ${vpnc_conf_beatle_alln01} "${vpnc_conf_beatle_rdcy01}" "$1" "$2"
@@ -291,7 +289,7 @@ alias allns="connect_alln 172.20.52.139"
 alias allnt="connect_alln 172.20.52.203"
 
 connect_rdcy() {
-connect_phase2 "${vpnc_conf_beatle_rdcy01}" ${vpnc_conf_beatle_alln01} "$1" "$2"
+connect_phase2 "${vpnc_conf_beatle_rdcy01}" "${vpnc_conf_beatle_alln01}" "$1" "$2"
 }
 alias rdcy="clear;echo -en \"${light_cyan}Which site would you like to connect to? (a,b,c,d...etc.):${clear_color} \"; read -n 1 cloudlet; echo; eval rdcy\${cloudlet}"
 alias rdcymon="connect_rdcy 172.20.0.141 ${beatle_mon_curr_pass}"
@@ -502,56 +500,202 @@ alias hnkgwin='rdesktop -u administrator -g 1152x864 -a16 -rclipboard:PRIMARYCLI
 # Gouda  #####################################################################################################################################
 connect_gouda(){
 [[ $always_check_mozy_vpn -eq 1 ]] && connect_mozy_vpn
-echo -e "${light_cyan}# Detecting VPN connection for $1${clear_color}"
-[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}# VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -en "${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2:  ${clear_color}";sudo vpnc $2.conf; }; }; }
+connect_vpn $1 $2
 [[ -z "$5" ]] && rubi_pass="${personal_gouda_pass}" || rubi_pass="$5"
-echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
-[[ -n "$3" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no ${emc_nt_username}@"$3" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no ${emc_nt_username}@"$4"
+[[ -z "$6" ]] && g_jb_user="${emc_nt_username}" || g_jb_user="$6"
+[[ -z "$7" ]] && g_nd_user="${emc_nt_username}" || g_nd_user="$7"
+[[ $1 =~ "gouda-lsvg01" ]] && sshpass_string="sshpass -p ${rubi_pass}" || sshpass_string=""
+[[ -n "$3" ]] && { [[ -n "$4" ]] && { echo -e "${cyan}# Connect through jumpbox to node:\t${green}ssh ${g_jb_user}@$3 >> ssh ${g_nd_user}@$4 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qtACo StrictHostKeyChecking=no -o GSSAPIAuthentication=no ${g_jb_user}@"$3" "${sshpass_string}" ssh -qttACo StrictHostKeyChecking=no -o GSSAPIAuthentication=no ${g_nd_user}@"$4" ; } || { echo -e "${red}# Connection attempt failed.\n${cyan}# Trying to connect to jumpbox: ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no ${g_jb_user}@"$3"; }; } || { echo "${cyan}# Connect to jumpbox: ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no ${g_jb_user}@"$3";}
 }
+
 ## ECS/ViPR in Las Vegas (lsvg)
-connect_lsvg() {
-connect_gouda "${vpnc_conf_gouda_lsvg01}" "${vpnc_conf_gouda_stng01}" ljb01.lsvg01.osaas.rcsops.com "$1" "$2"
-# [[ $(ps aux | egrep -c "[v]pnc "${vpnc_conf_gouda_lsvg01}"") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc "${vpnc_conf_gouda_stng01}"") -eq 1 ]] || { sudo vpnc "${vpnc_conf_gouda_lsvg01}".conf || sudo vpnc "${vpnc_conf_gouda_stng01}".conf; }; }
-# [[ -z "$2" ]] && rubi_pass="${gouda_vipr_curr_pass}" || rubi_pass="$2"
-# [[ -n "$1" ]] && sshpass -p "${rubi_pass}" ssh -vo StrictHostKeyChecking=no root@"$1"
-# # ljb01.lsvg01.osaas.rcsops.com
+connect_lsvg() { 
+connect_gouda "${vpnc_conf_gouda_lsvg01}" "${vpnc_conf_gouda_stng01}" ljb01.lsvg01.osaas.rcsops.com "$1" "$2" "$3" "$4"
 }
-#172.29.112.31 - .38 will be the nodes for beta that we'll be testing against. 
-alias lsvg="clear;echo -en \"${light_cyan}Which site would you like to connect to? ( ViPR 1, 2, or 3 = v1, v2, v3 ECS 1-8 = e1, e2, e3, etc. ):${clear_color} \"; read -n 2 cloudlet; echo; eval lsvg\${cloudlet}"
+
+connect_lsvg_blank(){
+  /usr/bin/clear
+  [[ -e /etc/bash.gouda_rack_info ]] && display_info_lsvg || echo -e "\n\n"
+  echo -en "${light_cyan}Which rack would you like to connect to in Gouda LSVG? (1-8): ${clear_color} "; read -n 1 lsvg_rack; echo
+  /usr/bin/clear
+  [[ -e /etc/bash.gouda_rack_info ]] && display_info_lsvg_rack${lsvg_rack} || echo -e "\n\n"
+  echo -en "${light_cyan}Which node would you like to connect to in rack ${lsvg_rack}? (1-8): ${clear_color} "; read -n 1 lsvg_node; echo; \
+  eval lsvg${lsvg_rack}${lsvg_node}
+}
+
+alias lsvg="connect_lsvg_blank"
 alias lsvgv1="connect_lsvg 172.29.120.147"
 alias lsvgv2="connect_lsvg 172.29.120.148"
 alias lsvgv3="connect_lsvg 172.29.120.149"
-alias lsvge1="connect_lsvg 172.29.112.31 ${gouda_ecs_curr_pass}"
-alias lsvge2="connect_lsvg 172.29.112.32 ${gouda_ecs_curr_pass}"
-alias lsvge3="connect_lsvg 172.29.112.33 ${gouda_ecs_curr_pass}"
-alias lsvge4="connect_lsvg 172.29.112.34 ${gouda_ecs_curr_pass}"
-alias lsvge5="connect_lsvg 172.29.112.35 ${gouda_ecs_curr_pass}"
-alias lsvge6="connect_lsvg 172.29.112.36 ${gouda_ecs_curr_pass}"
-alias lsvge7="connect_lsvg 172.29.112.37 ${gouda_ecs_curr_pass}"
-alias lsvge8="connect_lsvg 172.29.112.38 ${gouda_ecs_curr_pass}"
-alias lsvg_jb='sshpass -p ${personal_gouda_pass} ssh ${emc_nt_username}@ljb01.lsvg01.osaas.rcsops.com'
+
+alias lsvg11="connect_lsvg 172.29.112.11 ${gouda_ecs_curr_pass}"
+alias lsvg12="connect_lsvg 172.29.112.12 ${gouda_ecs_curr_pass}"
+alias lsvg13="connect_lsvg 172.29.112.13 ${gouda_ecs_curr_pass}"
+alias lsvg14="connect_lsvg 172.29.112.14 ${gouda_ecs_curr_pass}"
+alias lsvg15="connect_lsvg 172.29.112.15 ${gouda_ecs_curr_pass}"
+alias lsvg16="connect_lsvg 172.29.112.16 ${gouda_ecs_curr_pass}"
+alias lsvg17="connect_lsvg 172.29.112.17 ${gouda_ecs_curr_pass}"
+alias lsvg18="connect_lsvg 172.29.112.18 ${gouda_ecs_curr_pass}"
+
+alias lsvg21="connect_lsvg 172.29.112.19 ${gouda_ecs_curr_pass}"
+alias lsvg22="connect_lsvg 172.29.112.20 ${gouda_ecs_curr_pass}"
+alias lsvg23="connect_lsvg 172.29.112.21 ${gouda_ecs_curr_pass}"
+alias lsvg24="connect_lsvg 172.29.112.22 ${gouda_ecs_curr_pass}"
+alias lsvg25="connect_lsvg 172.29.112.23 ${gouda_ecs_curr_pass}"
+alias lsvg26="connect_lsvg 172.29.112.24 ${gouda_ecs_curr_pass}"
+alias lsvg27="connect_lsvg 172.29.112.25 ${gouda_ecs_curr_pass}"
+alias lsvg28="connect_lsvg 172.29.112.26 ${gouda_ecs_curr_pass}"
+
+alias lsvg31="connect_lsvg 172.29.112.31 ${gouda_ecs_curr_pass}"
+alias lsvg32="connect_lsvg 172.29.112.32 ${gouda_ecs_curr_pass}"
+alias lsvg33="connect_lsvg 172.29.112.33 ${gouda_ecs_curr_pass}"
+alias lsvg34="connect_lsvg 172.29.112.34 ${gouda_ecs_curr_pass}"
+alias lsvg35="connect_lsvg 172.29.112.35 ${gouda_ecs_curr_pass}"
+alias lsvg36="connect_lsvg 172.29.112.36 ${gouda_ecs_curr_pass}"
+alias lsvg37="connect_lsvg 172.29.112.37 ${gouda_ecs_curr_pass}"
+alias lsvg38="connect_lsvg 172.29.112.38 ${gouda_ecs_curr_pass}"
+
+alias lsvg41="connect_lsvg 172.29.112.41 ${gouda_ecs_curr_pass} ${emc_nt_username} root"
+alias lsvg42="connect_lsvg 172.29.112.42 ${gouda_ecs_curr_pass} ${emc_nt_username} root"
+alias lsvg43="connect_lsvg 172.29.112.43 ${gouda_ecs_curr_pass} ${emc_nt_username} root"
+alias lsvg44="connect_lsvg 172.29.112.44 ${gouda_ecs_curr_pass} ${emc_nt_username} root"
+alias lsvg45="connect_lsvg 172.29.112.45 ${gouda_ecs_curr_pass} ${emc_nt_username} root"
+alias lsvg46="connect_lsvg 172.29.112.46 ${gouda_ecs_curr_pass} ${emc_nt_username} root"
+alias lsvg47="connect_lsvg 172.29.112.47 ${gouda_ecs_curr_pass} ${emc_nt_username} root"
+alias lsvg48="connect_lsvg 172.29.112.48 ${gouda_ecs_curr_pass} ${emc_nt_username} root"
+
+alias lsvg51="connect_lsvg 172.29.112.75 ${gouda_ecs_curr_pass}"
+alias lsvg52="connect_lsvg 172.29.112.76 ${gouda_ecs_curr_pass}"
+alias lsvg53="connect_lsvg 172.29.112.77 ${gouda_ecs_curr_pass}"
+alias lsvg54="connect_lsvg 172.29.112.78 ${gouda_ecs_curr_pass}"
+alias lsvg55="connect_lsvg 172.29.112.79 ${gouda_ecs_curr_pass}"
+alias lsvg56="connect_lsvg 172.29.112.80 ${gouda_ecs_curr_pass}"
+alias lsvg57="connect_lsvg 172.29.112.81 ${gouda_ecs_curr_pass}"
+alias lsvg58="connect_lsvg 172.29.112.82 ${gouda_ecs_curr_pass}"
+
+alias lsvg61="connect_lsvg 172.29.112.83 ${gouda_ecs_curr_pass}"
+alias lsvg62="connect_lsvg 172.29.112.84 ${gouda_ecs_curr_pass}"
+alias lsvg63="connect_lsvg 172.29.112.85 ${gouda_ecs_curr_pass}"
+alias lsvg64="connect_lsvg 172.29.112.86 ${gouda_ecs_curr_pass}"
+alias lsvg65="connect_lsvg 172.29.112.87 ${gouda_ecs_curr_pass}"
+alias lsvg66="connect_lsvg 172.29.112.88 ${gouda_ecs_curr_pass}"
+alias lsvg67="connect_lsvg 172.29.112.89 ${gouda_ecs_curr_pass}"
+alias lsvg68="connect_lsvg 172.29.112.90 ${gouda_ecs_curr_pass}"
+
+alias lsvg71="connect_lsvg 172.29.112.91 ${gouda_ecs_curr_pass}"
+alias lsvg72="connect_lsvg 172.29.112.92 ${gouda_ecs_curr_pass}"
+alias lsvg73="connect_lsvg 172.29.112.93 ${gouda_ecs_curr_pass}"
+alias lsvg74="connect_lsvg 172.29.112.94 ${gouda_ecs_curr_pass}"
+alias lsvg75="connect_lsvg 172.29.112.95 ${gouda_ecs_curr_pass}"
+alias lsvg76="connect_lsvg 172.29.112.96 ${gouda_ecs_curr_pass}"
+alias lsvg77="connect_lsvg 172.29.112.97 ${gouda_ecs_curr_pass}"
+alias lsvg78="connect_lsvg 172.29.112.98 ${gouda_ecs_curr_pass}"
+
+alias lsvg81="connect_lsvg 172.29.112.99 ${gouda_ecs_curr_pass}"
+alias lsvg82="connect_lsvg 172.29.112.100 ${gouda_ecs_curr_pass}"
+alias lsvg83="connect_lsvg 172.29.112.101 ${gouda_ecs_curr_pass}"
+alias lsvg84="connect_lsvg 172.29.112.102 ${gouda_ecs_curr_pass}"
+alias lsvg85="connect_lsvg 172.29.112.103 ${gouda_ecs_curr_pass}"
+alias lsvg86="connect_lsvg 172.29.112.104 ${gouda_ecs_curr_pass}"
+alias lsvg87="connect_lsvg 172.29.112.105 ${gouda_ecs_curr_pass}"
+alias lsvg88="connect_lsvg 172.29.112.106 ${gouda_ecs_curr_pass}"
+
+alias lsvgjb="connect_lsvg ljb01.lsvg01.osaas.rcsops.com"
+
 
 ## ECS/ViPR in Sterling (stng)
-connect_stng() {
-connect_gouda "${vpnc_conf_gouda_stng01}" "${vpnc_conf_gouda_lsvg01}" ljb01.stng01.osaas.rcsops.com "$1" "$2"
-# [[ $(ps aux | egrep -c "[v]pnc "${vpnc_conf_gouda_stng01}"") -eq 1 ]] || { [[ $(ps aux | egrep -c "[v]pnc "${vpnc_conf_gouda_lsvg01}"") -eq 1 ]] || { sudo vpnc "${vpnc_conf_gouda_stng01}".conf || sudo vpnc "${vpnc_conf_gouda_lsvg01}".conf; }; }
-# #[[ -z "$2" ]] && rubi_pass="${gouda_vipr_curr_pass}" || rubi_pass="$2"
-# [[ -n "$1" ]] && sshpass -p "${personal_gouda_pass}" ssh -vo StrictHostKeyChecking=no ${emc_nt_username}@ljb01.stng01.osaas.rcsops.com ssh -vo StrictHostKeyChecking=no ${emc_nt_username}@"$1"
+connect_stng() { 
+connect_gouda "${vpnc_conf_gouda_stng01}" "${vpnc_conf_gouda_lsvg01}" ljb01.stng01.osaas.rcsops.com "$1" "$2" "$3" 
 }
-#172.29.112.31 - .38 will be the nodes for beta that we'll be testing against. 
-alias stng="clear;echo -en \"${light_cyan}Which site would you like to connect to? ( ViPR 1, 2, or 3 = v1, v2, v3 ECS 1-8 = e1, e2, e3, etc. ):${clear_color} \"; read -n 2 cloudlet; echo; eval stng\${cloudlet}"
-alias stngv1="connect_stng 172.29.104.147"
-alias stngv2="connect_stng 172.29.104.148"
-alias stngv3="connect_stng 172.29.104.149"
-alias stnge1="connect_stng 172.29.96.31 ${gouda_ecs_curr_pass}"
-alias stnge2="connect_stng 172.29.96.32 ${gouda_ecs_curr_pass}"
-alias stnge3="connect_stng 172.29.96.33 ${gouda_ecs_curr_pass}"
-alias stnge4="connect_stng 172.29.96.34 ${gouda_ecs_curr_pass}"
-alias stnge5="connect_stng 172.29.96.35 ${gouda_ecs_curr_pass}"
-alias stnge6="connect_stng 172.29.96.36 ${gouda_ecs_curr_pass}"
-alias stnge7="connect_stng 172.29.96.37 ${gouda_ecs_curr_pass}"
-alias stnge8="connect_stng 172.29.96.38 ${gouda_ecs_curr_pass}"
-alias stng_jb='sshpass -p ${personal_gouda_pass} ssh ${emc_nt_username}@ljb01.stng01.osaas.rcsops.com'
+
+connect_stng_blank(){
+  /usr/bin/clear
+  [[ -e /etc/bash.gouda_rack_info ]] && display_info_stng || echo -e "\n\n"
+  echo -en "${light_cyan}Which rack would you like to connect to in Gouda stng? (1-8): ${clear_color} "; read -n 1 stng_rack; echo
+  /usr/bin/clear
+  [[ -e /etc/bash.gouda_rack_info ]] && display_info_stng_rack${stng_rack} || echo -e "\n\n"
+  echo -en "${light_cyan}Which node would you like to connect to in rack ${stng_rack}? (1-8): ${clear_color} "; read -n 1 stng_node; echo; \
+  eval stng${stng_rack}${stng_node}
+}
+
+alias stng="connect_stng_blank"
+alias stng31v="connect_stng 172.29.104.147"
+alias stng32v="connect_stng 172.29.104.148"
+alias stng33v="connect_stng 172.29.104.149"
+
+alias stng11="connect_stng 172.29.96.11 ${gouda_ecs_curr_pass}"
+alias stng12="connect_stng 172.29.96.12 ${gouda_ecs_curr_pass}"
+alias stng13="connect_stng 172.29.96.13 ${gouda_ecs_curr_pass}"
+alias stng14="connect_stng 172.29.96.14 ${gouda_ecs_curr_pass}"
+alias stng15="connect_stng 172.29.96.15 ${gouda_ecs_curr_pass}"
+alias stng16="connect_stng 172.29.96.16 ${gouda_ecs_curr_pass}"
+alias stng17="connect_stng 172.29.96.17 ${gouda_ecs_curr_pass}"
+alias stng18="connect_stng 172.29.96.18 ${gouda_ecs_curr_pass}"
+
+alias stng21="connect_stng 172.29.96.19 ${gouda_ecs_curr_pass}"
+alias stng22="connect_stng 172.29.96.20 ${gouda_ecs_curr_pass}"
+alias stng23="connect_stng 172.29.96.21 ${gouda_ecs_curr_pass}"
+alias stng24="connect_stng 172.29.96.22 ${gouda_ecs_curr_pass}"
+alias stng25="connect_stng 172.29.96.23 ${gouda_ecs_curr_pass}"
+alias stng26="connect_stng 172.29.96.24 ${gouda_ecs_curr_pass}"
+alias stng27="connect_stng 172.29.96.25 ${gouda_ecs_curr_pass}"
+alias stng28="connect_stng 172.29.96.26 ${gouda_ecs_curr_pass}"
+
+alias stng31="connect_stng 172.29.96.27 ${gouda_ecs_curr_pass}"
+alias stng32="connect_stng 172.29.96.28 ${gouda_ecs_curr_pass}"
+alias stng33="connect_stng 172.29.96.29 ${gouda_ecs_curr_pass}"
+alias stng34="connect_stng 172.29.96.30 ${gouda_ecs_curr_pass}"
+alias stng35="connect_stng 172.29.96.31 ${gouda_ecs_curr_pass}"
+alias stng36="connect_stng 172.29.96.32 ${gouda_ecs_curr_pass}"
+alias stng37="connect_stng 172.29.96.33 ${gouda_ecs_curr_pass}"
+alias stng38="connect_stng 172.29.96.34 ${gouda_ecs_curr_pass}"
+
+alias stng41="connect_stng 172.29.96.35 ${gouda_ecs_curr_pass}"
+alias stng42="connect_stng 172.29.96.36 ${gouda_ecs_curr_pass}"
+alias stng43="connect_stng 172.29.96.37 ${gouda_ecs_curr_pass}"
+alias stng44="connect_stng 172.29.96.38 ${gouda_ecs_curr_pass}"
+alias stng45="connect_stng 172.29.96.39 ${gouda_ecs_curr_pass}"
+alias stng46="connect_stng 172.29.96.40 ${gouda_ecs_curr_pass}"
+alias stng47="connect_stng 172.29.96.41 ${gouda_ecs_curr_pass}"
+alias stng48="connect_stng 172.29.96.42 ${gouda_ecs_curr_pass}"
+
+alias stng51="connect_stng 172.29.96.75 ${gouda_ecs_curr_pass}"
+alias stng52="connect_stng 172.29.96.76 ${gouda_ecs_curr_pass}"
+alias stng53="connect_stng 172.29.96.77 ${gouda_ecs_curr_pass}"
+alias stng54="connect_stng 172.29.96.78 ${gouda_ecs_curr_pass}"
+alias stng55="connect_stng 172.29.96.79 ${gouda_ecs_curr_pass}"
+alias stng56="connect_stng 172.29.96.80 ${gouda_ecs_curr_pass}"
+alias stng57="connect_stng 172.29.96.81 ${gouda_ecs_curr_pass}"
+alias stng58="connect_stng 172.29.96.82 ${gouda_ecs_curr_pass}"
+
+alias stng61="connect_stng 172.29.96.83 ${gouda_ecs_curr_pass}"
+alias stng62="connect_stng 172.29.96.84 ${gouda_ecs_curr_pass}"
+alias stng63="connect_stng 172.29.96.85 ${gouda_ecs_curr_pass}"
+alias stng64="connect_stng 172.29.96.86 ${gouda_ecs_curr_pass}"
+alias stng65="connect_stng 172.29.96.87 ${gouda_ecs_curr_pass}"
+alias stng66="connect_stng 172.29.96.88 ${gouda_ecs_curr_pass}"
+alias stng67="connect_stng 172.29.96.89 ${gouda_ecs_curr_pass}"
+alias stng68="connect_stng 172.29.96.90 ${gouda_ecs_curr_pass}"
+
+alias stng71="connect_stng 172.29.96.91 ${gouda_ecs_curr_pass}"
+alias stng72="connect_stng 172.29.96.92 ${gouda_ecs_curr_pass}"
+alias stng73="connect_stng 172.29.96.93 ${gouda_ecs_curr_pass}"
+alias stng74="connect_stng 172.29.96.94 ${gouda_ecs_curr_pass}"
+alias stng75="connect_stng 172.29.96.95 ${gouda_ecs_curr_pass}"
+alias stng76="connect_stng 172.29.96.96 ${gouda_ecs_curr_pass}"
+alias stng77="connect_stng 172.29.96.97 ${gouda_ecs_curr_pass}"
+alias stng78="connect_stng 172.29.96.98 ${gouda_ecs_curr_pass}"
+
+alias stng81="connect_stng 172.29.96.99 ${gouda_ecs_curr_pass}"
+alias stng82="connect_stng 172.29.96.100 ${gouda_ecs_curr_pass}"
+alias stng83="connect_stng 172.29.96.101 ${gouda_ecs_curr_pass}"
+alias stng84="connect_stng 172.29.96.102 ${gouda_ecs_curr_pass}"
+alias stng85="connect_stng 172.29.96.103 ${gouda_ecs_curr_pass}"
+alias stng86="connect_stng 172.29.96.104 ${gouda_ecs_curr_pass}"
+alias stng87="connect_stng 172.29.96.105 ${gouda_ecs_curr_pass}"
+alias stng88="connect_stng 172.29.96.106 ${gouda_ecs_curr_pass}"
+
+alias stngjb="connect_stng ljb01.stng01.osaas.rcsops.com"
 
 
 ##############################################################################################################################################
@@ -559,11 +703,9 @@ alias stng_jb='sshpass -p ${personal_gouda_pass} ssh ${emc_nt_username}@ljb01.st
 # CSTaaS #####################################################################################################################################
 connect_cstaas() {
 [[ $always_check_mozy_vpn -eq 1 ]] && connect_mozy_vpn
-echo -e "${light_cyan}# Detecting VPN connection for $1: ${clear_color}"
-[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2: ${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -en "${red}VPN for $2 not found.\n${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2:  ${clear_color}";sudo vpnc $2.conf; }; }; }
+connect_vpn $1 $2
 [[ -z "$5" ]] && rubi_pass="${cstaas_jumpbox_curr_pass}" || rubi_pass="$5"
-echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
-[[ -n "$3" ]] && [[ -n "$4" ]] && { echo -e "${cyan}# Connect through jumpbox to node: ${clear_color}";sshpass -p "${rubi_pass}" ssh -qto StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" sshpass -p ${cstaas_node_curr_pass} ssh -qttACo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$4" /bin/bash -i; } || { echo "${cyan}# Connect to jumpbox: ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"; }
+[[ -n "$3" ]] && [[ -n "$4" ]] && { echo -e "${cyan}# Connect through jumpbox to node:\t${green}ssh $3 >> ssh $4 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qto StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" sshpass -p ${cstaas_node_curr_pass} ssh -qttACo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$4" || { echo -e "${red}# Connection attempt failed.\n${cyan}# Trying to connect to jumpbox: ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no "$3"; }; } || { echo -e "${cyan}# Connect to jumpbox: \t${green}ssh $3 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"; }
 }
 
 alias cstdfwjb=" connect_cstaas ${vpnc_conf_cstaas_dfw} ${vpnc_conf_cstaas_iad} 172.21.224.45"
@@ -578,11 +720,9 @@ alias cstams="   connect_cstaas ${vpnc_conf_cstaas_ams} ${vpnc_conf_cstaas_lon} 
 
 connect_gov_cstaas() {
 [[ $always_check_mozy_vpn -eq 1 ]] && connect_mozy_vpn
-echo -e "${light_cyan}# Detecting VPN connection for $1: ${clear_color}"
-[[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] || { echo -e "${red}VPN for $1 not found.\n${light_cyan}# Detecting VPN connection for $2: ${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] || { { echo -en "${red}VPN for $2 not found.\n${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2:  ${clear_color}";sudo vpnc $2.conf; }; }; }
+connect_vpn $1 $2
 [[ -z "$4" ]] && rubi_pass="${cstaas_node_curr_pass}" || rubi_pass="$4"
-echo -e "\n\n${light_cyan}# ssh $3${clear_color}"
-[[ -n "$3" ]] && sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"
+[[ -n "$3" ]] && { echo -e "${cyan}# Connect directly to node:\t${green}ssh $3 ${clear_color}";sshpass -p "${rubi_pass}" ssh -o StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" || echo -e "${red}# Connection attempt failed.${clear_color}"; } || echo -e "${red}# No host given to connect to${clear_color}"
 }
 
 alias govdfwjb=" echo -e \"${red}# No jumpbox for gov cloud.${clear_color}\""
@@ -608,8 +748,8 @@ show_vpn_shortcuts() {
 echo -e "\n\n\tOpen VPN connections: \n$(ps aux|egrep [v]pnc)\n\n\tAvailable VPN connections: "
 egrep "[b]eatle-[a-z]*1" /etc/bash.bashrc | awk 'BEGIN {FS="\"beatle-|1\"";   printf "\n\t     Beatle Phase 1: \n\n"};/beatle-/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}' 
 egrep "[b]eatle-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="\"beatle-|01\""; printf "\n\t     Beatle Phase 2: \n\n"};/beatle-/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
-egrep "connect_cstaas " /etc/bash.bashrc | awk 'BEGIN {FS="alias |=|\"|connect_cstaas"; printf "\t     CSTaaS: (add jb to connect to jumpbox/mon for monitor) \n\n"};!/jb|mon/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
-egrep "[g]ouda-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="\"gouda-|01\""; printf "\n\t     Gouda (ECS): \n\n"};/gouda/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
+egrep "_cstaas " /etc/bash.bashrc | awk 'BEGIN {FS="alias |=|\"|connect_cstaas|connect_gov_cstaas"; printf "\t     CSTaaS: (add jb to connect to jumpbox/mon for monitor) \n\n"};!/jb|mon/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
+egrep "[=]\"gouda-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="\"gouda-|01\""; printf "\n\t     Gouda (ECS): \n\n"};/gouda/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
 # | awk '\''function red(string) { printf ("%s%s%s", "\033[1;31m", string, "\033[0m "); }; function green(string) { printf ("%s%s%s", "\033[1;32m", string, "\033[0m "); };BEGIN {FS="sudo vpnc beatle-|sudo vpnc cstaas-|sudo vpnc gouda-|01.conf|1.conf"; printf "\n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n\n\n\n\n\n\n"}'\'' '
 #'echo -e "\n\n";ps aux|egrep [v]pnc; egrep "[c]onf" /etc/bash.bashrc | egrep -v "[s]sh|vpn=|refreship=" | awk '\''function red(string) { printf ("%s%s%s", "\033[1;31m", string, "\033[0m "); }; function green(string) { printf ("%s%s%s", "\033[1;32m", string, "\033[0m "); };BEGIN {FS="sudo vpnc beatle-|sudo vpnc cstaas-|sudo vpnc gouda-|01.conf|1.conf"; printf "\n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n\n\n\n\n\n\n"}'\'' '
 }
