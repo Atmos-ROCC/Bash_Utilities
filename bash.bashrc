@@ -1,13 +1,15 @@
 emc_nt_username=""
 beatle_curr_pass=""
 beatle_mon_curr_pass=""
+beatle_access_nodes_pw=""
 gouda_ecs_curr_pass=""
 gouda_vipr_curr_pass=""
 cstaas_node_curr_pass=""
 cstaas_jumpbox_curr_pass=""
 cstaas_jumpbox_old_pass=""
+personal_gouda_pass=""
 
-version=3.0
+version=3.1
 always_check_mozy_vpn=0         ## set to 1 to always check and connect to the mozy vpn before opening other vpn connections.
 
 ## names of conf files for each site, WITHOUT the .conf extension.
@@ -732,10 +734,6 @@ alias goviad="   connect_gov_cstaas ${vpnc_conf_govcst_iad} ${vpnc_conf_govcst_d
 alias govdfwmon="connect_gov_cstaas ${vpnc_conf_govcst_dfw} ${vpnc_conf_govcst_iad} 10.200.128.141 ${cstaas_jumpbox_curr_pass}"
 alias goviadmon="connect_gov_cstaas ${vpnc_conf_govcst_iad} ${vpnc_conf_govcst_dfw} 10.202.128.141 ${cstaas_jumpbox_curr_pass}"
 
-# CSTaaS FreeIPA servers:
-# alias iad='ssh -qtAC simisb@172.20.224.51 "$@"'
-# alias dfws='ssh -qtAC simisb@172.21.224.51 "$@"'
-
 ##############################################################################################################################################
 #        #####################################################################################################################################
 #        #####################################################################################################################################
@@ -750,8 +748,6 @@ egrep "[b]eatle-[a-z]*1" /etc/bash.bashrc | awk 'BEGIN {FS="\"beatle-|1\"";   pr
 egrep "[b]eatle-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="\"beatle-|01\""; printf "\n\t     Beatle Phase 2: \n\n"};/beatle-/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
 egrep "_cstaas " /etc/bash.bashrc | awk 'BEGIN {FS="alias |=|\"|connect_cstaas|connect_gov_cstaas"; printf "\t     CSTaaS: (add jb to connect to jumpbox/mon for monitor) \n\n"};!/jb|mon/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
 egrep "[=]\"gouda-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="\"gouda-|01\""; printf "\n\t     Gouda (ECS): \n\n"};/gouda/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
-# | awk '\''function red(string) { printf ("%s%s%s", "\033[1;31m", string, "\033[0m "); }; function green(string) { printf ("%s%s%s", "\033[1;32m", string, "\033[0m "); };BEGIN {FS="sudo vpnc beatle-|sudo vpnc cstaas-|sudo vpnc gouda-|01.conf|1.conf"; printf "\n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n\n\n\n\n\n\n"}'\'' '
-#'echo -e "\n\n";ps aux|egrep [v]pnc; egrep "[c]onf" /etc/bash.bashrc | egrep -v "[s]sh|vpn=|refreship=" | awk '\''function red(string) { printf ("%s%s%s", "\033[1;31m", string, "\033[0m "); }; function green(string) { printf ("%s%s%s", "\033[1;32m", string, "\033[0m "); };BEGIN {FS="sudo vpnc beatle-|sudo vpnc cstaas-|sudo vpnc gouda-|01.conf|1.conf"; printf "\n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n\n\n\n\n\n\n"}'\'' '
 }
 
 alias vpn='show_vpn_shortcuts'
