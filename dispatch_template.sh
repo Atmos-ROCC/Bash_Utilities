@@ -12,7 +12,7 @@
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.3.2                                                     #
+  version=1.4.0.2                                                   #
 #####################################################################
 
 ############################################################################################################
@@ -65,7 +65,8 @@ ${light_magenta}  Other templates:
     `basename $0` -f		# Troubleshoot DAE fan issues / Print DAE fan replacement template.
     `basename $0` -i		# Internal disk replacement template.
     `basename $0` -l		# LCC replacement/reseat template.
-    
+    `basename $0` -p		# Power Supply replacement template.
+
 ${light_blue}  Administrative options:
     `basename $0` -h		# Display this usage info (help).
     `basename $0` -v		# Display script's current version.
@@ -77,7 +78,6 @@ ${lt_gray}  Planned additions:
     `basename $0` -m		# DAE power cycle template.
     `basename $0` -n		# Node replacement template.
     `basename $0` -o		# Reboot / Power On dispatch template.
-    `basename $0` -p		# Power Supply replacement template.
     `basename $0` -r		# Reseat disk dispatch template.
     `basename $0` -w		# Private Switch replacement template.
 ${clear_color}  
@@ -87,7 +87,7 @@ EOF
 
 cleanup() {                     # Clean-up if script fails or finishes.
   #restore files.. [ -f /usr/sbin/sgdisk.bak ] && /bin/mv /usr/sbin/sgdisk.bak /usr/sbin/sgdisk
-  unset fsuuid
+  unset fsuuid_var
   unset sr_number
   unset new_sr_num
   (( $xdr_disabled_flag )) && echo -e "\n## Enabling Dialhomes (xDoctor/SYR) now.\n" && ssh $INITIAL_MASTER xdoctor --tool --exec=syr_maintenance --method=enable && xdr_disabled_flag=0
@@ -168,19 +168,19 @@ is_disk_replaceable () { 			  # Checks the status of the recovery and replacemen
             ;;		
         0:*:*)  	echo -e "${red}# Disk is not currently marked replaceable. \n${lt_gray}# RecoveryStatus: ${yellow}Status not found${lt_gray}\n# Objects ${percent_recovered} recovered."
             ;;		
-        1:6:*)  	touch /var/service/fsuuid_SRs/${fsuuid_var}.txt
-            [[ $(grep -c "^" /var/service/fsuuid_SRs/${fsuuid_var}.txt) -eq 1 ]] && for log in $(ls -t /var/log/maui/cm.log*); do bzgrep -m1 "Successfully updated replacable bit for $disk_sn_uuid" ${log} | awk -F\" '{print $2}' >> /var/service/fsuuid_SRs/${fsuuid_var}.txt && break; done
-            [[ $(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | wc -l) -eq 1 ]] && date >> /var/service/fsuuid_SRs/${fsuuid_var}.txt
+        1:6:*)  	touch /var/service/fsuuid_SRs/${fsuuid_var}.txt; touch /var/service/fsuuid_SRs/${fsuuid_var}.info
+            [[ $(grep -c "^" /var/service/fsuuid_SRs/${fsuuid_var}.txt) -eq 1 ]] && for log in $(ls -t /var/log/maui/cm.log*); do bzgrep -m1 "Successfully updated replacable bit for $disk_sn_uuid" ${log} | awk -F\" '{print $2}' >> /var/service/fsuuid_SRs/${fsuuid_var}.info && break; done
+            [[ $(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | wc -l) -eq 1 ]] && date >> /var/service/fsuuid_SRs/${fsuuid_var}.info
           set_replaced=$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | tail -1)
           date_replaceable=$(date +%s --date="$set_replaced")
           date_plus_seven=$((604800+${date_replaceable}))
           past_seven=''
           [[ $(date +%s) -ge ${date_plus_seven} ]] && past_seven=$(echo "Disk has been replaceable over 7 days, please check the SR")
-          echo -e "Replaceable="${green}"Yes"${white} "DiskSize="${yellow}${fsuuid_var}size"TB"${white} ${past_seven} 
+          echo -e "# Replaceable="${green}"Yes"${white} "DiskSize="${yellow}${fsuuid_var}size"TB"${white} ${past_seven} 
             ;;
-    1:4:*)  	echo -e "The disk is set for replaceable, Disk status is set to 4. The disk may not been seen by the hardware" 
+    1:4:*)  	echo -e "# The disk is set for replaceable, Disk status is set to 4. The disk may not be seen by the hardware" 
       ;;
-    1:*:*)  	echo -e "Disk is set for replaceable, but disk status is incorrect. Please update disk status=6 in the disks table" 
+    1:*:*)  	echo -e "# Disk is set for replaceable, but disk status is incorrect. Please update disk status=6 in the disks table.\n# Can use \"${script_name} -b\" to do this automatically." 
       ;;
         *)  exit 1					# Cleanup "Something failed... " 144
             ;;
@@ -189,8 +189,7 @@ is_disk_replaceable () { 			  # Checks the status of the recovery and replacemen
   return 0
 }
 
-validate_fsuuid_text_file(){
-  # Append dispatched time to show_offline_disks text file. Need to revise logic to consider for no SR # or no #session.
+validate_fsuuid_text_file(){    # validate the fsuuid file for show_offline_disks script.
   [[ -z $fsuuid_var ]] && get_fsuuid
   if [[ ! -e /var/service/fsuuid_SRs/${fsuuid_var}.txt ]]; then 
     echo -e "${red}# No show_offline_disks text file found for fsuuid: ${fsuuid_var}! ${clear_color}"
@@ -219,40 +218,46 @@ validate_fsuuid_text_file(){
   return 2
 }
 
-update_sr_num() {					      # Change the SR number in show_offline_disks script text file.
+update_sr_num() {					      # Reference SR number in show_offline_disks script . info file.
   if [[ $1 -eq 1 ]]; then
     [[ -z "$sr_number" ]] && { echo -e "${red}# No SR# found in show_offline_disks text file. If new SR is needed, use -u option for site/tla info.${clear_color}";read -p "# Enter SR#: (ctrl-c to quit)" -t 600 -n 8 new_sr_num && { echo; sr_number=${new_sr_num}; } || cleanup "Timeout: No SR# given." 181; }
     sed -i "1 s/,/,${new_sr_num}/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
   elif [[ $1 -eq 2 ]]; then
-    echo "# SR# given doesn't match number in show_offline_disks text file. Would you like to update the text file? (y/Y) "
+    echo "# SR# given doesn't match number in show_offline_disks text file. Please work through the current SR ${sr_number}. Would you like to reference your current SR in the notes file? (y/Y) "
     read -s -n 1 -t 120 update_sr_num_flag;
     [[ "${update_sr_num_flag}" =~ [yY] ]] || return 2
-    sed -i "1 s/,/,${new_sr_num}_origSR-/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+    #sed -i "1 s/,/,${new_sr_num}_origSR-/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+    echo "note_referenced_SR=${new_sr_num} - added $(date)" >> /var/service/fsuuid_SRs/${fsuuid_var}.info
   else
-    echo -e "${red}# You've selected to append a new SR to the show_offline_disks script.\nPlease ensure the new SR has been opened against Site ID: ${site_id} TLA: ${tla_number} Host: $HOSTNAME" 		               # Subject: ${New_Subject}"
+    echo -e "${red}# Will associate new SR# given in the .info file.\nPlease ensure the new SR has been opened against Site ID: ${site_id} TLA: ${tla_number} Host: $HOSTNAME" 		               # Subject: ${New_Subject}"
     validate_fsuuid_text_file
     [[ -z "$new_sr_num" ]] && read -p "# Enter new SR#: " -t 600 -n 8 new_sr_num || cleanup "Timeout: No SR# given." 181
     # validate sr number?      
     ## Write new SR num to txt file.
-    sed -i "1 s/,/,${new_sr_num}_origSR-/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
+    echo "note_referenceSR=${new_sr_num} - added $(date)" >> /var/service/fsuuid_SRs/${fsuuid_var}.info
+
+    #sed -i "1 s/,/,${new_sr_num}_origSR-/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
     echo -e "\n# SR# ${new_sr_num} has been added to the show_offline_disks text file.${clear_color}"
   fi
   return 0
 }
 
-append_dispatch_date() {			  # Appends dispatch date in show_offline_disks script text file.
+append_dispatch_date() {			  
+# Appends dispatch date in show_offline_disks script text file.
   validate_fsuuid_text_file  
   [[ -e /var/service/show_offline_disks.sh ]] && show_offline_disks_ver=$(/var/service/show_offline_disks.sh -v) || echo -e "${red}# Error: show_offline_disks.sh version not detected.${clear_color}"
-
-  case "${show_offline_disks_ver}:${atmos_ver3}:${hardware_gen}" in   						# hardware_gen:atmos_ver3
-    1.[0-5].[0-9][a-z]:*)       # For versions pre .info file - add SR# in text file.
+  [[ $print_test_switch == 1 ]] && echo "Show offline version: ${show_offline_disks_ver}"
+  case "${show_offline_disks_ver}:${atmos_ver3}:${hardware_gen}" in   						
+  # hardware_gen:atmos_ver3
+    1.[0-5].[0-9]*:*)                                 # For versions pre .info file - add SR# in text file.
         if [[ "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*-Dispatched_[0-1][0-9]-[0-3][0-9]-[0-9][0-9]_.* ]]; then 
-          echo -e "${red}# Dispatch date already appended to .txt file. Please check to ensure this disk hasn't already been dispatched against.${clear_color} " 
+          echo -e "${red}# Dispatch date already appended to .txt file. Please check to ensure this disk hasn't already been dispatched 
+          against.${clear_color} " 
           read -p "# Would you like to proceed with updating the dispatch date? (y/Y) " -s -n 1 -t 120 redispatch_flag
           [[ ${redispatch_flag} =~ [yY] ]] || cleanup "" 192
           sed -i "s/-Dispatched_[0-1][0-9]-[0-3][0-9]-[0-9][0-9]_/-Dispatched_$(date +%m-%d-%y)_/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
         elif
-          [[ ! "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*#session.* ]]; then
+          [[ ! "$(cat /var/service/fsuuid_SRs/${fsuuid_var}.txt | head -1)" =~ .*'#session'.* ]]; then
           sed -i "1s/\(,[0-9]\{8\}\)\($\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
         else 
           sed -i "1s/\(,[0-9]\{8\}\)\([#_]\)/\1-Dispatched_$(date +%m-%d-%y)_\2/" /var/service/fsuuid_SRs/${fsuuid_var}.txt
@@ -260,7 +265,7 @@ append_dispatch_date() {			  # Appends dispatch date in show_offline_disks scrip
         echo -e "\n${light_green}# Dispatch date has been appended to show_offline_disks text file: ${clear_color}"
         awk -F"," 'NR==1 {print $0}' /var/service/fsuuid_SRs/${fsuuid_var}.txt
       ;;
-    1.[6-9].[0-9][a-z]:* | [2-9].[0-9].[0-9][a-z]:*)       # For versions post .info file
+    1.[6-9].[0-9]*:*|[2-9].[0-9].[0-9]*:*)            # For versions post .info file
         if [[ "$(grep -c 'Date_dispatched=' /var/service/fsuuid_SRs/${fsuuid_var}.info)" -gt 0 ]]; then 
           echo -e "${red}# Dispatch date already appended to .info file. Please check to ensure this disk hasn't already been dispatched against.${clear_color} " 
           read -p "# Would you like to proceed with updating the dispatch date? (y/Y) " -s -n 1 -t 120 redispatch_flag
@@ -272,7 +277,8 @@ append_dispatch_date() {			  # Appends dispatch date in show_offline_disks scrip
         echo -e "\n${light_green}# Dispatch date has been appended to show_offline_disks .info file: ${clear_color}"
         grep "Date_dispatched" /var/service/fsuuid_SRs/${fsuuid_var}.info
       ;;
-    *)                              # Catch-all
+    *)                              
+    # Catch-all
         echo -e "${red}# Error: invalid show_offline_disks.sh version.\n# Date not written to file.${clear_color}"
       ;;
   esac
@@ -359,14 +365,17 @@ get_hardware_gen() {				    # Gets and sets HW Gen.
     case "$hardware_product" in
     1950)                       # > Dell 1950 is the Gen 1 hardware
       hardware_gen=1
+      [[ $print_test_switch -eq 1 ]] && echo "Hardware Gen: $hardware_gen"
       return 0
             ;;
     R610)                       # > Dell r610 is the Gen 2 hardware.
       hardware_gen=2
+      [[ $print_test_switch -eq 1 ]] && echo "Hardware Gen: $hardware_gen"
       return 0
       ;;
     S2600JF)                    # > Product Name: S2600JF is Gen3 
       hardware_gen=3
+      [[ $print_test_switch -eq 1 ]] && echo "Hardware Gen: $hardware_gen"
       return 0
       ;;
         *)  cleanup "Invalid hardware information. Could not determine generation. Please email Claiton.Weeks@emc.com to get corrected. " 51
@@ -379,6 +388,8 @@ get_fsuuid() { 						      # Get fsuuid from user.
   if [[ $1 -eq 0 ]]
   then
     [[ ${print_test_switch} -eq 1 ]] && echo "test get_fsuuid 2"
+    [[ -d /var/service/ ]] || cleanup "/var/service directory not found" 152
+    [[ -e /var/service/show_offline_disks.sh ]] || cleanup "/var/service/show_offline_disks.sh script not found" 152
     echo -e "\n# Please wait... running ${light_green}show_offline_disks.sh${clear_color}"
     offline_disks=$(/var/service/show_offline_disks.sh -l)
     [[ -z $offline_disks ]] && { echo -e "${light_green}# No offline disks found.\n# Exiting.${clear_color}"; cleanup "" 0; }
@@ -442,6 +453,10 @@ validate_fsuuid() {					    # Validate fsuuid against regex pattern.
 
 get_abs_path() { 					      # Find absolute path of script.
 case "$1" in /*)printf "%s\n" "$1";; *)printf "%s\n" "$PWD/$1";; esac; 
+# DIR="${BASH_SOURCE%/*}"
+# if [[ ! -d "$DIR" ]]; then DIR="$PWD"; fi
+# . "$DIR/incl.sh"
+# . "$DIR/main.sh"
 }
 
 distribute_script() {				    # Distribute script across all nodes, and sets permissions.
@@ -471,8 +486,8 @@ update_script(){                # Allows for updating script with passcode.
   full_path=$(get_abs_path $0); this_script=$(basename "$full_path"); this_script_dir=$(dirname "$full_path")
   [[ "$script_name" == "$this_script" ]] || cleanup "Please rename script to $script_name and try again." 20
   read -p "Update script: please enter passcode: " -t 30 -s -n 4 update_passcode_ver || cleanup "Timeout: No passcode given." 252
-  echo "${full_path}";sleep  
-  [[ ${update_passcode_ver} == "7777" ]] && { vim ${full_path}_tmp && wait && [[ -n $(bash ${full_path}_tmp -v | awk -F":| " '/version/{print $5}') ]] && { /bin/mv -f ${full_path}_tmp ${full_path}; wait; chmod +x ${full_path}; echo -e "${light_green}# Updated successfully!";cleanup "Updated successfully!" 0; } || cleanup "update failed..." 253; } || cleanup "wrong code..." 254
+  echo -e "\n${full_path}";sleep 1
+  [[ ${update_passcode_ver} == "7777" ]] && { vim ${full_path}_tmp && wait && [[ -n $(bash ${full_path}_tmp -v | awk -F":| " '/version/{print $5}') ]] && { /bin/mv -f ${full_path}_tmp ${full_path}; wait; chmod +x ${full_path}; echo -e "${light_green}# Updated successfully!";echo "$(${full_path} -v)";${full_path} -x;cleanup "Updated successfully!" 0; } || cleanup "update failed..." 253; } || cleanup "wrong code..." 254
   cleanup "Wrong passcode entered. Exiting." 255
 }
 
@@ -545,6 +560,7 @@ prep_int_disk_template() {      # Prepares input for use in print_int_disk_templ
       # Gen 2 (Dell R610) Server Platform internal 2.5” SATA Drive: 105-000-179   "DELL 250GB 7.2KRPM SATA2.5IN DK 11G SLED"
       ;;
     3:*)                            # Gen 3 Hardware
+    
       if [ -z ${internal_disk_dev_path} ] || [ -n ${internal_disk_dev_path} ]; then
         echo -en "\n${light_green}# Enter internal disk's device path (sda/sdb): "
         read -t 120 -n 3 internal_disk_dev_path || cleanup "Timeout: No internal disk given." 171
@@ -607,18 +623,6 @@ print_int_disk_template() {     # Prints internal disk template to screen.
 
 prep_dae_fan_template() {       # Prepares input for use in print_dae_fan_template function.
   # Check if disk is ready for replacement:
-  echo $cooling_fan_num
-  
-  if [ -z ${cooling_fan_num} ]; then
-    echo -en "\n${light_green}# Enter DAE fan number ( A#0, B#0, C#0, \"Enter\" to troubleshoot ): "
-    read -t 300 -n 3 cooling_fan_num
-    echo -e "\n${clear_color}"
-  fi
-  
-  [[ "${cooling_fan_num}" =~ [Aa] ]] && cooling_fan_num="A#0" 
-  [[ "${cooling_fan_num}" =~ [Bb] ]] && cooling_fan_num="B#0"
-  [[ "${cooling_fan_num}" =~ [Cc] ]] && cooling_fan_num="C#0"
-  #[[ "${cooling_fan_num}" =~ [ABC] ]] && cooling_fan_num="${cooling_fan_num}#0"
   
   if [ -z "${cooling_fan_num}"  -a "${cooling_fan_num}" != " " ]; then
     enclosure_number=$(cs_hal list enclosures | awk -F"/dev/sg| " '/\/dev\//{print $2}')
@@ -639,9 +643,23 @@ prep_dae_fan_template() {       # Prepares input for use in print_dae_fan_templa
     device_list=$(df -h | awk -F1 '/mauiss/{print $1}')
     for dev in $device_list; do smartctl -l scttempsts $dev | awk '/Current/{print $3}';done | sort | uniq | awk 'ORS="";function red(string) { printf ("%s%s%s%s", "\033[1;31m", string, "\033[0;37m", "C"); }; function green(string) { printf ("%s%s%s%s", "\033[1;32m", string, "\033[0;37m", "C"); };NR==1{n=$1};END { m=$1;if (n < 34){print green(n)" - "} else {print red(n)" - "};{if (m < 37){print green(m)} else {print red(m)}}}' 
     echo -e "\n${lt_gray}# *Note: The temperature of disks will vary based on the model and the activity and location.\n\n${light_cyan}# Either way, dispatch out to have the CE check the DAE for amber alert.\n${lt_gray}# For other DAE hardware errors, check the following logs: \ngrep DAE /var/log/maui/dm.log /var/log/messages\n\tError detected on DAE %s. Error details: %s.${clear_color}\n\n\n"
-    sleep 6; echo -e "\n\n\n\n";prep_dae_fan_template 1; fi
+    #sleep 6; echo -e "\n\n\n\n";prep_dae_fan_template 1; 
+    fi
+    echo $cooling_fan_num
+  
+  rep=0
+  until [[ ${cooling_fan_num} =~ [A-Ca-c] ]]; do
+    [[ $rep -ge 4 ]] && break 
+    [[ $rep -ge 1 ]] && echo -e "${red}# DAE Fan number not recognized. Please try again.${clear_color}"
+    echo -en "\n${light_green}# Enter DAE fan number reported faulty ( A#0, B#0, C#0 ): "
+    read -t 300 -n 3 cooling_fan_num; echo -e "\n${clear_color}"
+    rep=$rep+1
+  done
+  [[ "${cooling_fan_num}" =~ [Aa] ]] && cooling_fan_num="A#0" 
+  [[ "${cooling_fan_num}" =~ [Bb] ]] && cooling_fan_num="B#0"
+  [[ "${cooling_fan_num}" =~ [Cc] ]] && cooling_fan_num="C#0"
+ 
   [[ "${cooling_fan_num}" =~ [ABCabc]"#0" ]] || cleanup "DAE Fan number not recognized." 131
-
   set_customer_contact_info
   
   # set cooling fan part number
@@ -663,10 +681,6 @@ prep_dae_fan_template() {       # Prepares input for use in print_dae_fan_templa
   esac
 
   replace_method=" - FRU Replacement Procedure"
-  
-  # psql -U postgres -d rmg.db -h $RMG_MASTER -c "select d.devpath,d.slot,d.status,d.connected,d.slot_replaced,d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='$internal_uuid';" | egrep -v '^$|row'
-  # psql -U postgres -d rmg.db -h $RMG_MASTER -tx -c "select * from disks d where d.devpath='${int_dev_path}';"
-  
   print_dae_fan_template 
   [[ $1 ]] && cleanup "" 0
   return 0
@@ -689,7 +703,7 @@ print_dae_fan_template() {      # Prints dae fan template to screen.
   return 0
 }
 
-mark_disk_replaceable(){
+mark_disk_replaceable(){        # Mark disk as replaceable in rmg database.
   # from KB 000088361 
   # https://emc--c.na5.visual.force.com/apex/KB_BreakFix_1?id=kA1700000000QPP
 
@@ -700,20 +714,20 @@ mark_disk_replaceable(){
   is_replaceable=$(psql -U postgres -d rmg.db -h $RMG_MASTER -tq -c "select d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='${fsuuid_var}';" | tr -d ' |\n')
   disk_uuid=$(psql -U postgres -d rmg.db -h $RMG_MASTER -tq -c "select d.uuid from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='${fsuuid_var}';" | tr -d ' |\n') 
   echo -e "\n"
-  [[ $is_replaceable ]] && { read -p "## The disk is not currently replaceable. Would you like to update replacable bit? (y/n) " -t 60 -n 1 update_replaceable_confirm; echo; }
+  [[ $is_replaceable -eq 1 ]] && { read -p "${light_green}# The disk is already set to 'replacable' would you like to proceed with updating recoverytasks status, disk status, and cancel recovery through mauisvcmgr? (y/n) ${clear_color}" -t 60 -n 1 update_replaceable_confirm; echo; } || { read -p "${red}# The disk is not currently set to 'replacable' would you like to update replacable bit? (y/n) ${clear_color}" -t 60 -n 1 update_replaceable_confirm; echo; }
   if [[ "$update_replaceable_confirm" =~ [yY] ]]; then echo -e "\n" ;\
-    psql -U postgres -d rmg.db -h $RMG_MASTER -c "UPDATE disks SET replacable=1,status=6 WHERE uuid='${disk_uuid}';" ; echo; \
     psql -U postgres -d rmg.db -h $RMG_MASTER -tqxc "select d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='${fsuuid_var}';" ;\
+    psql -U postgres -d rmg.db -h $RMG_MASTER -c "UPDATE disks SET replacable=1,status=6 WHERE uuid='${disk_uuid}';" ; echo; \
     mauisvcmgr -s mauicm -c mauicm_cancel_recover_disk -a "host=$HOSTNAME,fsuuid=${fsuuid_var}" -m $HOSTNAME ;\
     psql -U postgres -d rmg.db -h $RMG_MASTER -c "UPDATE recoverytasks SET status=2 WHERE fsuuid='${fsuuid_var}';" ;\
     psql -U postgres -d rmg.db -h $RMG_MASTER -tqxc "select d.uuid \"Disk Serial\",d.devpath,d.slot,d.connected,d.slot_replaced,d.status \"Disk status\",d.replacable,r.status \"Recovery status\",r.unrecoverobj from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid JOIN recoverytasks r ON fs.fsuuid=r.fsuuid where fs.fsuuid='$fsuuid_var';"
-  else \
-    echo -e "\n## No updates performed. " ;\
+  else 
+    echo -e "\n## No updates performed. "
   fi
   return 0
 }
 
-spinner_time() {
+spinner_time() {                # Function that will display a spinner based on time.
 i=1
 x=0
 seconds="$(echo "$1*7.172" | bc | sed 's/[.].*//')"
@@ -728,7 +742,7 @@ done
 echo -en "\b"
 }
 
-show_system_info(){
+show_system_info(){             # Display system information.
   echo -e "\n# `basename $0` version: $version\n"
   maui_ver=$(cat /etc/maui/maui_version)
   atmos_hotfixes=$(awk -F\" '/value=/ {if($2=="hotfixes") if($4=="")printf "None found"; else printf $4}' /etc/maui/nodeconfig.xml)
@@ -738,8 +752,8 @@ show_system_info(){
   echo -e "\n\t\t\t(maui_version file)\t(nodeconfig.xml)\nAtmos Version:\t\t${maui_ver}\t\t${atmos_ver}\nInstalled Hotfixes:\t${atmos_hotfixes}\n"
   dmidecode | grep -i 'system information' -A4 && xdoctor -v | xargs -I{} echo 'xDoctor Version {}' && (ls -l /var/service/AET/workdir || ls -l /var/support/AET/workdir ) 2>/dev/null | awk '{print $11}'&& xdoctor -y | grep 'System Master:' | awk '{print $3,$4,$5}';echo -e "-------\n\n"
 }
-
-prep_lcc_templates() {      # Prepares input for use in print_int_disk_template function.
+  
+prep_lcc_templates() {          # Prepares input for use in print_int_disk_template function.
 
         # # cs_hal list enclosures
         # /dev/sg2     30   < 30 disks = 303-172-002D-001
@@ -831,7 +845,7 @@ prep_lcc_templates() {      # Prepares input for use in print_int_disk_template 
   return 0
 }
 
-print_lcc_replace_template() {     # Prints internal disk template to screen.
+print_lcc_replace_template() {  # Prints lcc replace template to screen.
   printf '%.0s=' {1..80}
   echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: DAE LCC Replacement\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nHardware:\tGEN${hardware_gen}\nMDS Type:\t${mds_layout}-way\nPart Number:\t${light_green}${part_num}${lt_gray} \nDescription:\t${part_description}"
   [[ -n ${print_lcc_replace_var_line1} ]] && echo -e "${print_lcc_replace_var_line1}"
@@ -850,7 +864,7 @@ print_lcc_replace_template() {     # Prints internal disk template to screen.
   return 0
 }
 
-print_lcc_reseat_template() {     # Prints internal disk template to screen.
+print_lcc_reseat_template() {   # Prints lcc reseat template to screen.
   printf '%.0s=' {1..80}
   echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: DAE LCC Reseat\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nHardware:\tGEN${hardware_gen}\nMDS Type:\t${mds_layout}-way\nPart Number:\tNot required for reseat. \nDescription:\t${part_description}"
   [[ -n ${print_lcc_reseat_var_line1} ]] && echo -e "${print_lcc_reseat_var_line1}"
@@ -869,6 +883,85 @@ print_lcc_reseat_template() {     # Prints internal disk template to screen.
   return 0
 }
 
+prep_power_supply_template() {  # Prepares input for use in print_int_disk_template function.
+  case "${hardware_gen}:${atmos_ver3}" in   						# hardware_gen:atmos_ver3
+    1:*)  	                          # Gen 1 hardware
+      cleanup "Gen 1 not supported yet. Need part info." 170
+      part_num=''				  
+      part_description=''
+      print_power_supply_replace_var_line1=""
+      print_power_supply_replace_var_line2=""
+      print_power_supply_reseat_var_line1=""
+      print_power_supply_reseat_var_line2=""
+      ;;		
+    2:*)  	                          # Gen 2 Hardware 
+      cleanup "Gen 2 not supported yet. Need part info." 170
+      part_num=''				  
+      part_description=''
+      print_power_supply_replace_var_line1=""
+      print_power_supply_replace_var_line2=""
+      print_power_supply_reseat_var_line1=""
+      print_power_supply_reseat_var_line2=""
+      ;;	
+    3:*)                            # Gen 3 Hardware
+      part_num='105-000-243-01'				  
+      part_description='INTEL 1200W POWER SUPPLY ROMELY'
+      print_power_supply_replace_var_line1=""
+      print_power_supply_replace_var_line2=""
+      print_power_supply_reseat_var_line1=""
+      print_power_supply_reseat_var_line2=""
+      ;;	
+    *) cleanup "Hardware Gen / Power Supply type detection failed." 170
+      ;;
+    esac
+
+  set_customer_contact_info
+  replace_method=""
+  
+  echo -en "\n${light_green}# Power Supply Menu: \n  1. Troubleshoot\n  2. Power Supply Replacement template\n\n# Please make your selection ( 1 or 2 ): ${clear_color}"
+  read -t 120 -n 1 print_power_supply_type_flag || cleanup "Timeout: No selection made." 171
+  [[ ${print_power_supply_type_flag} =~ [12] ]] || cleanup "Power Supply - Invalid selection." 172
+  [[ ${print_power_supply_type_flag} -eq 1 ]] && {
+    ## Power Supply Replacement -- KB 87316 -- Symptom Code 51013
+    # https://emc--c.na5.visual.force.com/apex/KB_BreakFix_1?id=kA1700000000Q8Y
+    # Ref: BZ 34320
+    echo -e "\n\n\n${cyan}# Following KB# 86979${clear_color}";printf '%.0s=' {1..80}
+    echo -e "\n\n${cyan}# If not running script on node with issue, see KB above for instructions.\n${clear_color}"
+    echo -e "\n\n${cyan}# bzgrep SENSOR_ /var/log/messages*${clear_color}";bzgrep SENSOR_ /var/log/messages*
+    echo -e "\n\n${cyan}# cs_hal sensors power${clear_color}";cs_hal sensors power
+    echo -e "\n\n${cyan}# cs_hal sensors psu${clear_color}";cs_hal sensors psu
+    print_power_supply_type_flag=2
+    }
+  [[ ${print_power_supply_type_flag} -eq 2 ]] && print_power_supply_type="print_power_supply_template"
+  
+  print_power_supply_temp_flag="y"
+  echo -en "\n${light_green}# Continue printing dispatch template for Power Supply? (y/Y) [Default = y]: ${clear_color}"
+  read -t 120 -n 1 print_power_supply_temp_flag || cleanup "Timeout: No selection made." 173
+  echo
+  [[ ${print_power_supply_temp_flag} =~ [yY] ]] && { echo -en "\n${light_green}# Select which power supply showed faulty? (1/2): ${clear_color}";read -t 220 -n 1 power_supply_num || cleanup "Timeout: No selection made." 174;echo;$print_power_supply_type; } || { [[ ${print_power_supply_temp_flag} =~ [nN] ]] || cleanup "Invalid selection." 175; }
+  return 0 
+}
+
+print_power_supply_template() { # Prints power supply replacement template to screen.
+  printf '%.0s=' {1..80}
+  echo -e "${lt_gray} \n\nAtmos ${atmos_ver3} Dispatch\t(Disp Notification - Generic)\n\nCST please create a Task for the field CE from the information below.\nReason for Dispatch: Chassis Power Supply (PS) Replacement\n\nSys. Serial#:\t${tla_number}\nHost Node:\t$HOSTNAME \nHardware:\tGEN${hardware_gen}\nPart Number:\t${light_green}${part_num}${lt_gray} \nDescription:\t${part_description}\nPower Supply #:\tUnit ${power_supply_num} (PS${power_supply_num})"
+  [[ -n ${print_power_supply_replace_var_line1} ]] && echo -e "${print_power_supply_replace_var_line1}"
+  [[ -n ${print_power_supply_replace_var_line2} ]] && echo -e "${print_power_supply_replace_var_line2}"
+  echo -e "\nCE Action Required:  On Site"
+  printf '%.0s-' {1..30}
+  echo -e "\n1- Contact ROCC and arrange for checking PS for the above node and probable PS replacement.\n2- Sensors for PS${power_supply_num} for ${HOSTNAME} have alerted - please physically locate the node.\n3- Open Atmos G${hardware_gen} rear cabinet door; locate any illuminated solid/blinking amber LEDs for the PS.\n4- If solid amber, confirm AC input is operational and cords are fully seated.\n5- If defective chassis power supply is determined, follow procgen for Gen ${hardware_gen} Node Chassis Power Supply${replace_method}.\n*Note: An Amber solid LED can denote AC input loss or power supply critical event.\n*Note: PS can display flashing green LED which signifies less than 4 nodes powered on in the chassis.\n\t# PS will be in a cold redundant state, this is normal operation."  
+  [[ $node_location != "lond" || $node_location != "amst" ]] && echo -e "*Note: If any assistance is needed, contact your FSS."
+  echo -e "\nIssue Description: Chassis Power Supply needs replacement."
+  printf '%.0s-' {1..58}
+  echo -e "\n${customer_contact_info}${customer_contact_location}"
+  echo -e "Next Action:\tDispatch CE onsite\nPlease notify the CE to contact ${customer_name} prior to going on site and to complete the above tasks in their entirety.\n ${clear_color}"
+  printf '%.0s=' {1..80}
+  echo -e ""
+  
+  return 0
+}
+
+
 ###########################################   Start main code..  ###########################################
 ## Initialize color variables
 ############################################################################################################
@@ -878,6 +971,9 @@ get_hardware_gen
 
 ## Trap keyboard interrupt (control-c)
 trap control_c SIGINT
+
+## Testing switch warning
+[[ $print_test_switch -eq 1 ]] && echo "${red}# Testing option: ON (run script with -z option to turn off)${clear_color}"
 
 ## If more than 2 options
 ## Check if correct number of options were specified.
@@ -928,7 +1024,7 @@ do
         ;;
     o)	cleanup "Not supported yet, will print node reboot/power on template." 99
         ;;
-    p)	cleanup "Not supported yet, will print power supply replacement template." 99
+    p)	prep_power_supply_template
         ;;
     r)	cleanup "Not supported yet, will print reseat disk template." 99
         ;;
@@ -979,12 +1075,15 @@ main "$@"
 # fsuuid valid on current node.                                             - done
 # customer contact info to text file?                                       - done
 # move dispatched date to .info file in show_offline_disks versions 1.6.0+  - done
-# complete other dispatch templates.                                        - 1/7
+# complete other dispatch templates.                                        - 2/7
     # # `basename $0` -c		# Switch/eth0 connectivity template.            - pending
     # # `basename $0` -l		# LCC replacement template.                     - done
     # # `basename $0` -n		# Node replacement template.                    - pending
     # # `basename $0` -o		# Reboot / Power On dispatch template.          - pending
-    # # `basename $0` -p		# Power Supply replacement template.            - pending      #66679408  sndg01k01-is4-004  'Power Supply Redundancy' 'SENSOR_NON_RECOVERABLE'
+    # # `basename $0` -p		# Power Supply replacement template.            - done      
     # # `basename $0` -r		# Reseat disk dispatch template.                - pending
     # # `basename $0` -w		# Private Switch replacement template.          - pending
 # BZ standardized templates.                                                - pending
+# Automate dispatch through Service Center with script option.
+
+
