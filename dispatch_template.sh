@@ -12,7 +12,7 @@
 # May be freely distributed and modified as needed,                 #
 # as long as proper credit is given.                                #
 #                                                                   #
-  version=1.3.0                                                    #
+  version=1.3.2                                                     #
 #####################################################################
 
 ############################################################################################################
@@ -702,7 +702,7 @@ mark_disk_replaceable(){
   echo -e "\n"
   [[ $is_replaceable ]] && { read -p "## The disk is not currently replaceable. Would you like to update replacable bit? (y/n) " -t 60 -n 1 update_replaceable_confirm; echo; }
   if [[ "$update_replaceable_confirm" =~ [yY] ]]; then echo -e "\n" ;\
-    psql -U postgres -d rmg.db -h $RMG_MASTER -c "UPDATE disks SET replacable=1 WHERE uuid='${disk_uuid}';" ; echo; \
+    psql -U postgres -d rmg.db -h $RMG_MASTER -c "UPDATE disks SET replacable=1,status=6 WHERE uuid='${disk_uuid}';" ; echo; \
     psql -U postgres -d rmg.db -h $RMG_MASTER -tqxc "select d.uuid,d.replacable from fsdisks fs RIGHT JOIN disks d ON fs.diskuuid=d.uuid where fsuuid='${fsuuid_var}';" ;\
     mauisvcmgr -s mauicm -c mauicm_cancel_recover_disk -a "host=$HOSTNAME,fsuuid=${fsuuid_var}" -m $HOSTNAME ;\
     psql -U postgres -d rmg.db -h $RMG_MASTER -c "UPDATE recoverytasks SET status=2 WHERE fsuuid='${fsuuid_var}';" ;\
