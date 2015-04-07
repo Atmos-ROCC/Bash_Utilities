@@ -9,8 +9,9 @@ cstaas_jumpbox_curr_pass=""
 cstaas_jumpbox_old_pass=""
 personal_gouda_pass=""
 
-version=3.1
-always_check_mozy_vpn=0         ## set to 1 to always check and connect to the mozy vpn before opening other vpn connections.
+version=3.3
+always_check_mozy_vpn=0                     ## set to 1 to always check and connect to the mozy vpn before opening other vpn connections.
+this_file_location='/etc/bash.bashrc'       ## if you source this file from bash.bashrc rather than overwriting, but the location here.
 
 ## names of conf files for each site, WITHOUT the .conf extension.
 ## names of conf files for each site, WITHOUT the .conf extension.
@@ -170,7 +171,9 @@ echo -en "${light_cyan}Checking for Mozy VPN: ${clear_color}"
 }
 
 connect_vpn(){
-echo -en "${light_cyan}# Detecting VPN connection for $1: ${clear_color}"; [[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] && echo -e "${light_green} $1 VPN connected.${clear_color}" || { echo -e "${red} $1 VPN not found."; echo -en "${light_cyan}# Detecting VPN connection for $2: ${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] && echo -e "${light_green} $2 VPN connected.${clear_color}" || { { echo -e "${red} $2 VPN not found.";echo -en "${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2:  ${clear_color}";sudo vpnc $2.conf || echo -en "${red}# Opening connection to $2 failed.\n${clear_color}"; }; }; }
+echo -en "${light_cyan}# Detecting VPN connection for $1: ${clear_color}"; [[ $(ps aux | egrep -c "[v]pnc $1") -eq 1 ]] && { echo -e "${light_green} $1 VPN connected.${clear_color}";return 0; } || { echo -e "${red} $1 VPN not found."; echo -en "${light_cyan}# Detecting VPN connection for $2: ${clear_color}";[[ $(ps aux | egrep -c "[v]pnc $2") -eq 1 ]] && { echo -e "${light_green} $2 VPN connected.${clear_color}"; return 0; } || { { echo -e "${red} $2 VPN not found.";echo -en "${light_green}# Opening VPN connection to $1:  ${clear_color}"; sudo vpnc $1.conf && return 0; } || { echo -en "${red}# Opening connection to $1 failed.\n${light_green}# Opening VPN connection to $2:  ${clear_color}";sudo vpnc $2.conf && return 0 || echo -en "${red}# Opening connection to $2 failed.\n${clear_color}"; }; }; }
+echo -e "${red}# VPN Connection failure, cannot connect.${clear_color}"
+return 1
 }
 ###BEATLE ALIASES###
 #Phase 2 #####################################################################################################################################
@@ -179,7 +182,7 @@ connect_phase1(){
 [[ $always_check_mozy_vpn -eq 1 ]] && connect_mozy_vpn
 connect_vpn $1 $2
 [[ -z "$4" ]] && rubi_pass="${beatle_curr_pass}" || rubi_pass="$4"
-[[ -n "$3" ]] && [[ -n "$5" ]] && { echo -e "${cyan}# Connect through jumpbox to node:\t${green}ssh $3 >> ssh $5 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qto StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" ssh -qttACo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$5" || { echo -e "${red}# Connection attempt failed.\n${cyan}# Trying to connect to jumpbox: ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no "$3"; }; } || { echo -e "${cyan}# Connect directly to node: \t${green}ssh $3 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"; }
+[[ -n "$3" ]] && { [[ -n "$5" ]] && { echo -e "${cyan}# Connect through jumpbox to node:\t${green}ssh $3 >> ssh $5 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qto StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3" ssh -qttACo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$5" || { echo -e "${red}# Connection attempt failed.\n${cyan}# Trying to connect to jumpbox: ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no "$3"; }; } || { echo -e "${cyan}# Connect directly to node: \t${green}ssh $3 ${clear_color}";sshpass -p "${rubi_pass}" ssh -qo StrictHostKeyChecking=no -o GSSAPIAuthentication=no root@"$3"; }; }
 }
 
 #Phase 1 West
@@ -243,7 +246,7 @@ alias sydc="connect_syd 172.30.22.11 ${beatle_curr_pass} 172.30.30.139"
 alias sydd="connect_syd 172.30.22.11 ${beatle_curr_pass} 172.30.30.203"
 
 connect_tyo() {
-connect_mozy_vpn
+[[ $always_check_mozy_vpn -eq 1 ]] && connect_mozy_vpn
 connect_phase1 "${vpnc_conf_beatle_tyo1}" "${vpnc_conf_beatle_syd1}" "$1" "$2" "$3"
 
 }
@@ -502,7 +505,7 @@ alias hnkgwin='rdesktop -u administrator -g 1152x864 -a16 -rclipboard:PRIMARYCLI
 # Gouda  #####################################################################################################################################
 connect_gouda(){
 [[ $always_check_mozy_vpn -eq 1 ]] && connect_mozy_vpn
-connect_vpn $1 $2
+connect_vpn $1 $2 || return 1
 [[ -z "$5" ]] && rubi_pass="${personal_gouda_pass}" || rubi_pass="$5"
 [[ -z "$6" ]] && g_jb_user="${emc_nt_username}" || g_jb_user="$6"
 [[ -z "$7" ]] && g_nd_user="${emc_nt_username}" || g_nd_user="$7"
@@ -621,6 +624,9 @@ connect_stng_blank(){
 }
 
 alias stng="connect_stng_blank"
+
+alias stng51v="connect_stng 172.29.104.146"
+
 alias stng31v="connect_stng 172.29.104.147"
 alias stng32v="connect_stng 172.29.104.148"
 alias stng33v="connect_stng 172.29.104.149"
@@ -734,6 +740,10 @@ alias goviad="   connect_gov_cstaas ${vpnc_conf_govcst_iad} ${vpnc_conf_govcst_d
 alias govdfwmon="connect_gov_cstaas ${vpnc_conf_govcst_dfw} ${vpnc_conf_govcst_iad} 10.200.128.141 ${cstaas_jumpbox_curr_pass}"
 alias goviadmon="connect_gov_cstaas ${vpnc_conf_govcst_iad} ${vpnc_conf_govcst_dfw} 10.202.128.141 ${cstaas_jumpbox_curr_pass}"
 
+# CSTaaS FreeIPA servers:
+# alias iad='ssh -qtAC simisb@172.20.224.51 "$@"'
+# alias dfws='ssh -qtAC simisb@172.21.224.51 "$@"'
+
 ##############################################################################################################################################
 #        #####################################################################################################################################
 #        #####################################################################################################################################
@@ -744,10 +754,12 @@ alias refreshwireless="echo -e \"\n\"; getnew(){ echo -e \"# Refreshing connecti
 
 show_vpn_shortcuts() {
 echo -e "\n\n\tOpen VPN connections: \n$(ps aux|egrep [v]pnc)\n\n\tAvailable VPN connections: "
-egrep "[b]eatle-[a-z]*1" /etc/bash.bashrc | awk 'BEGIN {FS="\"beatle-|1\"";   printf "\n\t     Beatle Phase 1: \n\n"};/beatle-/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}' 
-egrep "[b]eatle-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="\"beatle-|01\""; printf "\n\t     Beatle Phase 2: \n\n"};/beatle-/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
-egrep "_cstaas " /etc/bash.bashrc | awk 'BEGIN {FS="alias |=|\"|connect_cstaas|connect_gov_cstaas"; printf "\t     CSTaaS: (add jb to connect to jumpbox/mon for monitor) \n\n"};!/jb|mon/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
-egrep "[=]\"gouda-[a-z]*01" /etc/bash.bashrc | awk 'BEGIN {FS="\"gouda-|01\""; printf "\n\t     Gouda (ECS): \n\n"};/gouda/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
+egrep "[b]eatle-[a-z]*1" ${this_file_location} | awk 'BEGIN {FS="\"beatle-|1\"";   printf "\n\t     Beatle Phase 1: \n\n"};/beatle-/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}' 
+egrep "[b]eatle-[a-z]*01" ${this_file_location} | awk 'BEGIN {FS="\"beatle-|01\""; printf "\n\t     Beatle Phase 2: \n\n"};/beatle-/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
+egrep "_cstaas " ${this_file_location} | awk 'BEGIN {FS="alias |=|\"|connect_cstaas|connect_gov_cstaas"; printf "\t     CSTaaS: (add jb to connect to jumpbox/mon for monitor) \n\n"};!/jb|mon/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
+egrep "[=]\"gouda-[a-z]*01" ${this_file_location} | awk 'BEGIN {FS="\"gouda-|01\""; printf "\n\t     Gouda (ECS): \n\n"};/gouda/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n"}'
+# | awk '\''function red(string) { printf ("%s%s%s", "\033[1;31m", string, "\033[0m "); }; function green(string) { printf ("%s%s%s", "\033[1;32m", string, "\033[0m "); };BEGIN {FS="sudo vpnc beatle-|sudo vpnc cstaas-|sudo vpnc gouda-|01.conf|1.conf"; printf "\n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n\n\n\n\n\n\n"}'\'' '
+#'echo -e "\n\n";ps aux|egrep [v]pnc; egrep "[c]onf" /etc/bash.bashrc | egrep -v "[s]sh|vpn=|refreship=" | awk '\''function red(string) { printf ("%s%s%s", "\033[1;31m", string, "\033[0m "); }; function green(string) { printf ("%s%s%s", "\033[1;32m", string, "\033[0m "); };BEGIN {FS="sudo vpnc beatle-|sudo vpnc cstaas-|sudo vpnc gouda-|01.conf|1.conf"; printf "\n\n"};/vpnc/{a[i++]=$2;if (i==4){printf "%-14s %-14s %-14s %-14s %-14s \n\n",a[5], a[0], a[1], a[2], a[3] ;i=0;delete a}}END{if (i>0) printf "%-14s %-14s %-14s %-14s %-14s\n",a[5],a[0],a[1],a[2],a[3]} END{printf "\n\n\n\n\n\n\n"}'\'' '
 }
 
 alias vpn='show_vpn_shortcuts'
