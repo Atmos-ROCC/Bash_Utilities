@@ -1,3 +1,16 @@
+#####################################################################################################################
+# System-wide .bashrc file for interactive bash(1) shells.
+
+emc_nt_username=""
+beatle_curr_pass=""
+beatle_mon_curr_pass=""
+beatle_access_nodes_pw=""
+gouda_ecs_curr_pass=""
+gouda_vipr_curr_pass=""
+cstaas_node_curr_pass=""
+cstaas_jumpbox_curr_pass=""
+cstaas_jumpbox_old_pass=""
+personal_gouda_pass=""
 
 version=3.4.0.8
 always_check_mozy_vpn=0                     ## set to 1 to always check and connect to the mozy vpn before opening other vpn connections.
