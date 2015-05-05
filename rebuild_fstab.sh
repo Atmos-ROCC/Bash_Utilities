@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 rebuilt_fstab="/etc/fstab.$(date +%m%d%Y)"
 blkid_tmp="/tmp/blkid.tmp" ; blkid > ${blkid_tmp}
 
