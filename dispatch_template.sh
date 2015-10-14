@@ -354,6 +354,10 @@ set_disk_part_info() {				  # Gets and sets disk part info.
       part_num='005050062'				  # part: 005050062
       model_num='HUS724040ALA640'		# model: HUS724040ALA640
       ;;
+    3:8:*)		                      # Gen 3 Hardware - 8TB disk
+      part_num='118000115'				  # part: 118000115
+      model_num='HUH728080ALN600'		# model: HUH728080ALN600
+      ;;
         *)  cleanup "Gen${1} / ${2}TB Disk size combination not supported yet. \nPlease email Claiton.Weeks@emc.com to get corrected. " 4
             ;;
     esac
