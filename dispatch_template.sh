@@ -5,7 +5,7 @@
 # Outputs pre-filled dispatch templates for Atmos.                  #
 # Can troubleshoot some issues - see options list.                  #
 #                                                                   #
-# Created by Claiton Weeks (claiton.weeks<at>emc.com)               #
+# Created by Claiton Weeks (CSS.WWTS.ASD.Atmos.ROCC@emc.com)               #
 # Templates based off of CS ROCC team's dispatch templates.         #
 #           --Thanks Robert, Kollin, Leo, and everyone else.        #
 #                                                                   #
@@ -47,7 +47,7 @@ display_usage() {               # Display usage table.
 ${light_green}Overview:
     Display pre-filled template to copy/paste into Service Manager for dispatch. 
     Can also help troubleshoot some issues, like DAE fans.
-    Send comments or suggestions to claiton.weeks@emc.com.
+    Send comments or suggestions to CSS.WWTS.ASD.Atmos.ROCC@emc.com
     
 ${light_cyan}Synopsis:
   Disk templates / functions:
@@ -354,11 +354,11 @@ set_disk_part_info() {				  # Gets and sets disk part info.
       part_num='005050062'				  # part: 005050062
       model_num='HUS724040ALA640'		# model: HUS724040ALA640
       ;;
-    3:8:*)		                      # Gen 3 Hardware - 8TB disk
+	3:8:*)		                      # Gen 3 Hardware - 8TB disk
       part_num='118000115'				  # part: 118000115
       model_num='HUH728080ALN600'		# model: HUH728080ALN600
       ;;
-        *)  cleanup "Gen${1} / ${2}TB Disk size combination not supported yet. \nPlease email Claiton.Weeks@emc.com to get corrected. " 4
+        *)  cleanup "Gen${1} / ${2}TB Disk size combination not supported yet. \nPlease email CSS.WWTS.ASD.Atmos.ROCC@emc.com to get corrected. " 4
             ;;
     esac
   return 0
@@ -382,7 +382,7 @@ get_hardware_gen() {				    # Gets and sets HW Gen.
       [[ $print_test_switch -eq 1 ]] && echo "Hardware Gen: $hardware_gen"
       return 0
       ;;
-        *)  cleanup "Invalid hardware information. Could not determine generation. Please email Claiton.Weeks@emc.com to get corrected. " 51
+        *)  cleanup "Invalid hardware information. Could not determine generation. Please email CSS.WWTS.ASD.Atmos.ROCC@emc.com to get corrected. " 51
             ;;
     esac
 }
@@ -821,7 +821,7 @@ prep_lcc_templates() {          # Prepares input for use in print_int_disk_templ
       print_lcc_reseat_var_line2=""
       ;;	
     3:60:*)                            # Gen 3 Hardware
-      part_num='303-171-000B'		       # 303-171-000B  – VOYAGER 6G SAS LCC ASSY - G3-DENSE Model ONLY
+      part_num='303-171-000B'		       # 303-171-000B  – VOYAGER 6G SAS LCC ASSY - G3-DENSE Model ONLY
       part_description='VOYAGER 6G SAS LCC ASSY'
       print_lcc_replace_var_line1=""
       print_lcc_replace_var_line2=""
